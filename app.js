@@ -25,6 +25,23 @@
     return e;
   }
 
+  // ícones lucide (mesmos usados no modelo)
+  const ICONS = {
+    'eye': [['path', { d: 'M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0' }], ['circle', { cx: 12, cy: 12, r: 3 }]],
+    'user-plus': [['path', { d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' }], ['circle', { cx: 9, cy: 7, r: 4 }], ['line', { x1: 19, x2: 19, y1: 8, y2: 14 }], ['line', { x1: 22, x2: 16, y1: 11, y2: 11 }]],
+    'heart': [['path', { d: 'M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5' }]],
+    'radar': [['path', { d: 'M19.07 4.93A10 10 0 0 0 6.99 3.34' }], ['path', { d: 'M4 6h.01' }], ['path', { d: 'M2.29 9.62A10 10 0 1 0 21.31 8.35' }], ['path', { d: 'M16.24 7.76A6 6 0 1 0 8.23 16.67' }], ['path', { d: 'M12 18h.01' }], ['path', { d: 'M17.99 11.66A6 6 0 0 1 15.77 16.67' }], ['circle', { cx: 12, cy: 12, r: 2 }], ['path', { d: 'm13.41 10.59 5.66-5.66' }]],
+    'circle-user': [['circle', { cx: 12, cy: 12, r: 10 }], ['circle', { cx: 12, cy: 10, r: 3 }], ['path', { d: 'M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662' }]],
+    'layout-dashboard': [['rect', { width: 7, height: 9, x: 3, y: 3, rx: 1 }], ['rect', { width: 7, height: 5, x: 14, y: 3, rx: 1 }], ['rect', { width: 7, height: 9, x: 14, y: 12, rx: 1 }], ['rect', { width: 7, height: 5, x: 3, y: 16, rx: 1 }]],
+    'camera': [['path', { d: 'M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z' }], ['circle', { cx: 12, cy: 13, r: 3 }]],
+  };
+  function icon(name, size) {
+    const svg = svgEl('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+    (ICONS[name] || []).forEach(([tag, attrs]) => svg.append(svgEl(tag, attrs)));
+    return svg;
+  }
+  document.querySelectorAll('[data-icon]').forEach((n) => n.prepend(icon(n.dataset.icon, 20)));
+
   // ---------- formatação pt-BR ----------
   const nf0 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -65,27 +82,29 @@
 
   // ---------- KPI ----------
   function delta(cur, prev, lowerIsBetter) {
-    if (!prev) return el('span', { class: 'delta flat', text: '—' });
+    if (!prev) return null;
     const p = (cur - prev) / prev;
-    if (Math.abs(p) < 0.005) return el('span', { class: 'delta flat', text: '— 0%', title: 'Sem variação' });
+    if (Math.abs(p) < 0.005) return el('span', { class: 'pill flat', text: '— 0%', title: 'Sem variação vs. período anterior' });
     const up = p > 0;
     const good = lowerIsBetter ? !up : up;
     return el('span', {
-      class: 'delta ' + (good ? 'good' : 'bad'),
-      title: good ? 'Melhora em relação ao período anterior' : 'Piora em relação ao período anterior',
+      class: 'pill ' + (good ? 'good' : 'bad'),
+      title: (good ? 'Melhora' : 'Piora') + ' em relação ao período anterior',
       text: (up ? '▲ ' : '▼ ') + nf1.format(Math.abs(p) * 100) + '%',
     });
   }
+  // cartão de métrica no padrão do modelo: título, ícone, valor, subtítulo e variação
   function renderKpis(container, items) {
     container.textContent = '';
     items.forEach((k) => {
-      const foot = el('div', { class: 'kpi-foot' });
-      if (k.sub) foot.append(k.sub);
-      else foot.append(delta(k.cur, k.prev, k.lowerIsBetter), el('span', { text: 'vs. período anterior' }));
+      const top = el('div', { class: 'kpi-top' }, el('h3', { class: 'kpi-title', text: k.label }));
+      if (k.icon) top.append(el('div', { class: 'kpi-icon' }, icon(k.icon, 18)));
       container.append(el('div', { class: 'kpi' },
-        el('div', { class: 'kpi-label', text: k.label }),
-        el('div', { class: 'kpi-value', text: k.fmt(k.cur) }),
-        foot));
+        top,
+        el('p', { class: 'kpi-value', text: k.fmt(k.cur) }),
+        el('div', { class: 'kpi-foot' },
+          k.sub ? el('p', { class: 'kpi-sub', text: k.sub }) : null,
+          delta(k.cur, k.prev, k.lowerIsBetter))));
     });
   }
 
@@ -226,7 +245,7 @@
   }
 
   // ======================================================================
-  //                               TRÁFEGO PAGO
+  //                                META ADS
   // ======================================================================
   const PAID_KEYS = ['spend', 'impressions', 'clicks', 'lpv', 'leads'];
   function paidSeries(from, to) {
@@ -240,19 +259,19 @@
     return o;
   }
 
-  function renderPaid() {
+  function renderMeta() {
     const b = bounds();
     const cur = paidSeries(b.from, b.to), prev = paidSeries(b.pFrom, b.pTo);
     const T = (s) => ({ spend: sum(s.spend), impr: sum(s.impressions), clicks: sum(s.clicks), lpv: sum(s.lpv), leads: sum(s.leads) });
     const c = T(cur), p = T(prev);
 
-    renderKpis($('#paid-kpis'), [
-      { label: 'Investimento', cur: c.spend, prev: p.spend, fmt: fBRL },
-      { label: 'Leads', cur: c.leads, prev: p.leads, fmt: fInt },
-      { label: 'Custo por lead (CPL)', cur: div(c.spend, c.leads), prev: div(p.spend, p.leads), fmt: fBRL, lowerIsBetter: true },
-      { label: 'Cliques no link', cur: c.clicks, prev: p.clicks, fmt: fInt },
-      { label: 'CTR (link)', cur: div(c.clicks, c.impr), prev: div(p.clicks, p.impr), fmt: fPct },
-      { label: 'CPM', cur: div(c.spend, c.impr) * 1000, prev: div(p.spend, p.impr) * 1000, fmt: fBRL, lowerIsBetter: true },
+    renderKpis($('#meta-kpis'), [
+      { label: 'Investimento', sub: 'gasto no período', cur: c.spend, prev: p.spend, fmt: fBRL },
+      { label: 'Leads', sub: 'contatos gerados', cur: c.leads, prev: p.leads, fmt: fInt },
+      { label: 'Custo por lead', sub: 'investimento ÷ leads', cur: div(c.spend, c.leads), prev: div(p.spend, p.leads), fmt: fBRL, lowerIsBetter: true },
+      { label: 'Cliques no link', sub: 'cliques que levaram ao site', cur: c.clicks, prev: p.clicks, fmt: fInt },
+      { label: 'CTR (link)', sub: 'cliques ÷ impressões', cur: div(c.clicks, c.impr), prev: div(p.clicks, p.impr), fmt: fPct },
+      { label: 'CPM', sub: 'custo por mil impressões', cur: div(c.spend, c.impr) * 1000, prev: div(p.spend, p.impr) * 1000, fmt: fBRL, lowerIsBetter: true },
     ]);
 
     const dates = D.days.slice(b.from, b.to);
@@ -270,7 +289,6 @@
       { label: 'Leads', value: c.leads, valueText: fInt(c.leads), subText: fPct(div(c.leads, c.lpv)) + ' das visualizações', color: 'var(--ramp-3)', tipLabel: 'leads' },
     ]);
 
-    // campanhas
     const rows = D.campaigns.map((camp) => ({ camp, t: campTotals(camp, b.from, b.to) })).sort((a, z) => z.t.spend - a.t.spend);
     fillTable($('#t-campaigns'), [
       { label: 'Campanha', txt: true, cls: 'name', cell: (r) => el('span', null, r.camp.name, el('span', { class: 'cell-sub', text: r.camp.objective })) },
@@ -283,9 +301,8 @@
       { label: 'CPL', cell: (r) => (r.t.leads ? fBRL(r.t.spend / r.t.leads) : '—') },
     ], rows, ['Total', '', fBRL(c.spend), fInt(c.impr), fInt(c.clicks), fPct(div(c.clicks, c.impr)), fInt(c.leads), c.leads ? fBRL(c.spend / c.leads) : '—']);
 
-    // diário
     const idx = Array.from({ length: dates.length }, (_, i) => dates.length - 1 - i);
-    fillTable($('#t-paid-daily'), [
+    fillTable($('#t-meta-daily'), [
       { label: 'Data', txt: true, cell: (i) => dLong(dates[i]) },
       { label: 'Investimento', cell: (i) => fBRL(cur.spend[i]) },
       { label: 'Impressões', cell: (i) => fInt(cur.impressions[i]) },
@@ -300,56 +317,54 @@
   //                                INSTAGRAM
   // ======================================================================
   const IG = D.instagram;
-  const IG_KEYS = ['reach', 'views', 'interactions', 'profile_taps', 'new_followers'];
   const igSlice = (k, from, to) => IG.daily.slice(from, to).map((d) => d[k]);
-  const TYPE_COLORS = { Reel: 'var(--s1)', Carrossel: 'var(--s2)', Imagem: 'var(--s3)' };
-  const postInter = (p) => p.likes + p.comments + p.saves + p.shares;
+  const safeUrl = (u) => (typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null);
 
-  function renderIG() {
+  function postCard(p) {
+    const link = safeUrl(p.permalink);
+    const root = link
+      ? el('a', { class: 'post', href: link, target: '_blank', rel: 'noopener noreferrer' })
+      : el('div', { class: 'post' });
+    const img = safeUrl(p.thumbnail);
+    root.append(
+      img
+        ? el('img', { class: 'thumb', src: img, alt: p.caption || 'Conteúdo do Instagram', loading: 'lazy' })
+        : el('div', { class: 'thumb', 'data-type': p.type, text: p.type }),
+      el('div', { class: 'post-body' },
+        el('p', { class: 'post-date', text: new Date(p.date + 'T12:00:00Z').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) }),
+        p.caption ? el('p', { class: 'post-cap', text: p.caption }) : null,
+        el('div', { class: 'post-stats' },
+          el('div', null, el('b', { text: fInt(p.reach) }), el('span', { text: 'Alcance' })),
+          el('div', null, el('b', { text: fInt(p.views) }), el('span', { text: 'Views' })),
+          el('div', null, el('b', { class: 'p', text: fInt(p.follows) }), el('span', { text: 'Seguidores' })))));
+    return root;
+  }
+
+  function renderInstagram() {
     const b = bounds();
     const S = (k) => ({ cur: igSlice(k, b.from, b.to), prev: igSlice(k, b.pFrom, b.pTo) });
-    const reach = S('reach'), views = S('views'), inter = S('interactions'), taps = S('profile_taps'), nf = S('new_followers');
+    const reach = S('reach'), views = S('views'), inter = S('interactions'), pv = S('profile_views'), nf = S('new_followers');
+    const tot = (x) => ({ cur: sum(x.cur), prev: sum(x.prev) });
 
     renderKpis($('#ig-kpis'), [
-      { label: 'Seguidores', cur: IG.followers, fmt: fInt, sub: el('span', null, el('span', { class: 'delta good', text: '+' + fInt(sum(nf.cur)) }), ' no período') },
-      { label: 'Novos seguidores', cur: sum(nf.cur), prev: sum(nf.prev), fmt: fInt },
-      { label: 'Visualizações', cur: sum(views.cur), prev: sum(views.prev), fmt: fInt },
-      { label: 'Alcance médio por dia', cur: sum(reach.cur) / state.range, prev: sum(reach.prev) / state.range, fmt: fInt },
-      { label: 'Interações', cur: sum(inter.cur), prev: sum(inter.prev), fmt: fInt },
-      { label: 'Toques nos links do perfil', cur: sum(taps.cur), prev: sum(taps.prev), fmt: fInt },
+      { label: 'Visualizações', sub: 'conteúdo visualizado', icon: 'eye', fmt: fInt, ...tot(views) },
+      { label: 'Seguidores', sub: 'variação líquida no período', icon: 'user-plus', fmt: fInt, ...tot(nf) },
+      { label: 'Interações', sub: 'curtidas, comentários, envios e salvamentos', icon: 'heart', fmt: fInt, ...tot(inter) },
+      { label: 'Contas Alcançadas', sub: 'perfis únicos que viram o conteúdo', icon: 'radar', fmt: fInt, ...tot(reach) },
+      { label: 'Visitas ao Perfil', sub: 'visitas diretas no perfil', icon: 'circle-user', fmt: fInt, ...tot(pv) },
     ]);
+
+    const posts = $('#ig-posts');
+    posts.textContent = '';
+    const latest = IG.posts.slice(-10).reverse();
+    if (!latest.length) posts.append(el('div', { class: 'sub', text: 'Nenhum conteúdo encontrado' }));
+    latest.forEach((p) => posts.append(postCard(p)));
 
     const dates = D.days.slice(b.from, b.to);
     timeChart($('#c-reach'), { dates, values: reach.cur, type: 'line', color: 'var(--s1)', yFmt: fAxis, tipFmt: fInt, label: 'Alcance',
       aria: `Alcance diário. Média no período: ${fInt(sum(reach.cur) / state.range)} contas por dia.` });
     timeChart($('#c-follow'), { dates, values: nf.cur, type: 'bar', color: 'var(--s3)', yFmt: fAxis, tipFmt: fInt, label: 'Novos seguidores',
       aria: `Novos seguidores por dia. Total no período: ${fInt(sum(nf.cur))}.` });
-    timeChart($('#c-views'), { dates, values: views.cur, type: 'bar', color: 'var(--s1)', yFmt: fAxis, tipFmt: fInt, label: 'Visualizações',
-      aria: `Visualizações diárias. Total no período: ${fInt(sum(views.cur))}.` });
-
-    // posts do período
-    const posts = IG.posts.filter((p) => p.date >= D.days[b.from] && p.date <= D.days[N - 1]);
-    const byType = {};
-    posts.forEach((p) => { (byType[p.type] = byType[p.type] || []).push(p); });
-    const items = Object.keys(TYPE_COLORS).filter((t) => byType[t]).map((t) => {
-      const avg = sum(byType[t].map(postInter)) / byType[t].length;
-      return { label: t, value: avg, valueText: fInt(avg), subText: `${byType[t].length} ${byType[t].length === 1 ? 'post' : 'posts'}`, color: TYPE_COLORS[t], tipLabel: 'interações por post' };
-    }).sort((a, z) => z.value - a.value);
-    if (items.length) hbars($('#c-format'), items);
-    else { $('#c-format').textContent = ''; $('#c-format').append(el('p', { class: 'sub', text: 'Nenhum post publicado no período.' })); }
-
-    const top = posts.slice().sort((a, z) => postInter(z) - postInter(a)).slice(0, 8);
-    fillTable($('#t-posts'), [
-      { label: 'Post', txt: true, cls: 'name', cell: (p) => el('span', null, p.caption, el('span', { class: 'cell-sub', text: dLong(p.date) })) },
-      { label: 'Formato', txt: true, cell: (p) => p.type },
-      { label: 'Alcance', cell: (p) => fInt(p.reach) },
-      { label: 'Visualizações', cell: (p) => fInt(p.views) },
-      { label: 'Curtidas', cell: (p) => fInt(p.likes) },
-      { label: 'Comentários', cell: (p) => fInt(p.comments) },
-      { label: 'Salvos', cell: (p) => fInt(p.saves) },
-      { label: 'Compart.', cell: (p) => fInt(p.shares) },
-      { label: 'Engajamento', cell: (p) => fPct(div(postInter(p), p.reach)) },
-    ], top);
 
     const idx = Array.from({ length: dates.length }, (_, i) => dates.length - 1 - i);
     fillTable($('#t-ig-daily'), [
@@ -357,46 +372,49 @@
       { label: 'Alcance', cell: (i) => fInt(reach.cur[i]) },
       { label: 'Visualizações', cell: (i) => fInt(views.cur[i]) },
       { label: 'Interações', cell: (i) => fInt(inter.cur[i]) },
-      { label: 'Toques nos links', cell: (i) => fInt(taps.cur[i]) },
+      { label: 'Visitas ao perfil', cell: (i) => fInt(pv.cur[i]) },
       { label: 'Novos seguidores', cell: (i) => fInt(nf.cur[i]) },
     ], idx);
   }
 
   // ======================================================================
-  //                          CASCA / INTERAÇÃO GERAL
+  //                       CASCA: ROTAS, FILTRO, TEMA
   // ======================================================================
+  const PAGES = ['meta', 'instagram'];
+
   function render() {
     const b = bounds();
-    $('#range-label').textContent = `${dm(D.days[b.from])} a ${dm(D.days[N - 1])} · comparado com ${dm(D.days[b.pFrom])} a ${dm(D.days[b.pTo - 1])}`;
+    $('#range-label').textContent = `${dm(D.days[b.from])} a ${dm(D.days[N - 1])} · vs. ${dm(D.days[b.pFrom])} a ${dm(D.days[b.pTo - 1])}`;
     hideTip();
-    if (state.tab === 'paid') renderPaid(); else renderIG();
+    if (state.tab === 'meta') renderMeta(); else renderInstagram();
   }
 
-  function setTab(tab) {
-    state.tab = tab;
-    $('#view-paid').hidden = tab !== 'paid';
-    $('#view-ig').hidden = tab !== 'ig';
-    $('#tab-paid').setAttribute('aria-selected', tab === 'paid');
-    $('#tab-ig').setAttribute('aria-selected', tab === 'ig');
+  function applyRoute() {
+    const h = location.hash.replace('#', '');
+    state.tab = PAGES.includes(h) ? h : 'meta';
+    PAGES.forEach((pg) => {
+      $('#page-' + pg).hidden = pg !== state.tab;
+      const a = $('#nav-' + pg);
+      if (pg === state.tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    document.title = (state.tab === 'meta' ? 'Meta Ads' : 'Instagram') + ' · DallTech Dashboard';
+    $('#content').scrollTop = 0;
     render();
   }
-  $('#tab-paid').addEventListener('click', () => setTab('paid'));
-  $('#tab-ig').addEventListener('click', () => setTab('ig'));
+  window.addEventListener('hashchange', applyRoute);
 
   document.querySelectorAll('#range-seg button').forEach((btn) => {
     btn.addEventListener('click', () => {
       state.range = Number(btn.dataset.range);
       document.querySelectorAll('#range-seg button').forEach((x) => x.setAttribute('aria-pressed', x === btn));
-      const chart = document.querySelectorAll('.chart');
-      chart.forEach((c) => c.classList.add('loading'));
-      requestAnimationFrame(() => { render(); chart.forEach((c) => c.classList.remove('loading')); });
+      const charts = document.querySelectorAll('.chart');
+      charts.forEach((c) => c.classList.add('loading'));
+      requestAnimationFrame(() => { render(); charts.forEach((c) => c.classList.remove('loading')); });
     });
   });
 
-  // tema
-  function currentTheme() {
-    return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  }
+  // tema (escuro por padrão, como no modelo)
+  const currentTheme = () => document.documentElement.dataset.theme || 'dark';
   function paintThemeBtn() { $('#theme-label').textContent = currentTheme() === 'dark' ? '☀ Claro' : '☾ Escuro'; }
   $('#theme-btn').addEventListener('click', () => {
     const next = currentTheme() === 'dark' ? 'light' : 'dark';
@@ -406,21 +424,20 @@
   });
   paintThemeBtn();
 
-  // cabeçalho / rodapé / banner
-  $('#brand-sub').textContent = `Meta Ads · ${IG.handle}`;
+  // banner / rodapé
   $('#banner-acc').textContent = D.account.adAccount;
   $('#sample-banner').hidden = !D.sample;
   $('#foot-note').textContent = D.sample
     ? 'Dados fictícios gerados em data.js apenas para demonstrar o layout.'
     : `Fontes: Meta Ads (${D.account.adAccount}) e Instagram ${IG.handle}.`;
 
-  // redimensionamento: redesenha gráficos quando a largura muda
+  // redesenha os gráficos quando a largura muda
   let lastW = window.innerWidth, timer;
   window.addEventListener('resize', () => {
     clearTimeout(timer);
     timer = setTimeout(() => { if (window.innerWidth !== lastW) { lastW = window.innerWidth; render(); } }, 120);
   });
-  document.addEventListener('scroll', hideTip, { passive: true });
+  document.addEventListener('scroll', hideTip, { capture: true, passive: true });
 
-  render();
+  applyRoute();
 })();

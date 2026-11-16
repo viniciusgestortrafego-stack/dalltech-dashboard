@@ -8,8 +8,8 @@
  * Formato resumido:
  *   days:       ['YYYY-MM-DD', ...]  (60 dias consecutivos, o mais recente por último)
  *   campaigns:  [{ id, name, objective, status, daily: [{spend, impressions, clicks, lpv, leads}, ...] }]
- *   instagram:  { handle, followers, daily: [{reach, views, interactions, profile_taps, new_followers}, ...],
- *                 posts: [{date, type, caption, reach, views, likes, comments, saves, shares}] }
+ *   instagram:  { handle, daily: [{reach, views, interactions, profile_views, new_followers}, ...],
+ *                 posts: [{date, type, caption, reach, views, follows, permalink, thumbnail}] }
  */
 (function () {
   function mulberry32(a) {
@@ -67,7 +67,6 @@
   }));
 
   // ---------- Instagram (@dall.tech) ----------
-  const followersEnd = 4812;
   const igDaily = days.map((_, i) => {
     const f = dowFactor[weekday[i]];
     const spike = i === 47 || i === 48 ? 2.6 : 1; // Reel que performou bem
@@ -76,7 +75,7 @@
     const interactions = Math.round(views * between(0.035, 0.06));
     return {
       reach, views, interactions,
-      profile_taps: Math.round(between(2, 9) * f * spike),
+      profile_views: Math.round(between(14, 40) * f * spike),
       new_followers: Math.max(0, Math.round(between(3, 11) * f * spike)),
     };
   });
@@ -96,9 +95,9 @@
     'Perguntas frequentes sobre pedido mínimo e prazos.',
   ];
   const typeSpec = {
-    Reel: { reach: 2300, view: 1.8, like: 0.045, save: 0.1, share: 0.14 },
-    Carrossel: { reach: 1350, view: 1.25, like: 0.05, save: 0.22, share: 0.08 },
-    Imagem: { reach: 820, view: 1.15, like: 0.042, save: 0.08, share: 0.05 },
+    Reel: { reach: 2300, view: 1.8, follow: 0.006 },
+    Carrossel: { reach: 1350, view: 1.25, follow: 0.004 },
+    Imagem: { reach: 820, view: 1.15, follow: 0.002 },
   };
   const typeOrder = ['Reel', 'Carrossel', 'Reel', 'Imagem', 'Carrossel', 'Reel', 'Carrossel', 'Imagem'];
   const posts = [];
@@ -108,13 +107,12 @@
     const boost = i >= 46 && i <= 48 && type === 'Reel' ? 2.4 : 1;
     const reach = Math.round(s.reach * boost * noise(0.35));
     const views = Math.round(reach * s.view * noise(0.1));
-    const likes = Math.round(reach * s.like * noise(0.25));
     posts.push({
       date: days[i], type, caption: captions[p % captions.length],
-      reach, views, likes,
-      comments: Math.round(likes * between(0.04, 0.12)),
-      saves: Math.round(likes * s.save * noise(0.3)),
-      shares: Math.round(likes * s.share * noise(0.3)),
+      reach, views,
+      follows: Math.round(reach * s.follow * noise(0.4)),
+      permalink: null,  // URL do post no Instagram (null = sem link)
+      thumbnail: null,  // URL da miniatura (null = placeholder)
     });
   }
 
@@ -123,6 +121,6 @@
     account: { adAccount: 'DALL.TECH-AD-01', currency: 'BRL' },
     days,
     campaigns,
-    instagram: { handle: '@dall.tech', followers: followersEnd, daily: igDaily, posts },
+    instagram: { handle: '@dall.tech', daily: igDaily, posts },
   };
 })();
