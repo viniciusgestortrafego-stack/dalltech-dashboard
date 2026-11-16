@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DallTech Dashboard</title>
+  <meta name="description" content="Dashboard de tráfego pago (Meta Ads) e Instagram da DallTech.">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // aplica o tema salvo antes da primeira pintura (evita flash)
+    try { var t = localStorage.getItem('dalltech-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>DallTech Dashboard</h1>
+          <p class="brand-sub" id="brand-sub"></p>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Seções">
+        <button role="tab" id="tab-paid" aria-controls="view-paid" aria-selected="true">Tráfego pago</button>
+        <button role="tab" id="tab-ig" aria-controls="view-ig" aria-selected="false">Instagram</button>
+      </nav>
+      <button class="theme-btn" id="theme-btn" type="button" aria-label="Alternar tema claro/escuro">
+        <span id="theme-label">Tema</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="sample-banner" id="sample-banner" hidden role="note">
+      <span class="sample-icon" aria-hidden="true">⚠</span>
+      <p><strong>Dados de exemplo (fictícios).</strong>
+        A conta de anúncios <span id="banner-acc"></span> ainda não tem campanhas e a leitura do Instagram via Windsor.ai está pausada.
+        Veja o <code>README.md</code> para conectar dados reais.</p>
+    </div>
+
+    <div class="filters" role="group" aria-label="Período">
+      <span class="filters-label">Período</span>
+      <div class="seg" id="range-seg">
+        <button type="button" data-range="7" aria-pressed="false">7 dias</button>
+        <button type="button" data-range="14" aria-pressed="false">14 dias</button>
+        <button type="button" data-range="30" aria-pressed="true">30 dias</button>
+      </div>
+      <span class="filters-range" id="range-label"></span>
+    </div>
+
+    <!-- ================= TRÁFEGO PAGO ================= -->
+    <section id="view-paid" role="tabpanel" aria-labelledby="tab-paid">
+      <div class="kpis" id="paid-kpis"></div>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>Investimento diário</h2>
+          <p class="sub">Valor gasto por dia em Meta Ads (R$)</p>
+          <div class="chart" id="c-spend"></div>
+        </section>
+        <section class="card">
+          <h2>Leads por dia</h2>
+          <p class="sub">Contatos gerados por dia (WhatsApp + formulário)</p>
+          <div class="chart" id="c-leads"></div>
+        </section>
+      </div>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>Custo por lead (CPL)</h2>
+          <p class="sub">Investimento ÷ leads, por dia (R$) — quanto menor, melhor</p>
+          <div class="chart" id="c-cpl"></div>
+        </section>
+        <section class="card">
+          <h2>Funil de conversão</h2>
+          <p class="sub">Do clique no anúncio até o lead</p>
+          <div class="hbars" id="c-funnel"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Campanhas</h2>
+        <p class="sub">Desempenho no período selecionado, ordenado por investimento</p>
+        <div class="table-wrap"><table id="t-campaigns"></table></div>
+      </section>
+
+      <details class="card details">
+        <summary>Ver dados diários em tabela</summary>
+        <div class="table-wrap"><table id="t-paid-daily"></table></div>
+      </details>
+    </section>
+
+    <!-- ================= INSTAGRAM ================= -->
+    <section id="view-ig" role="tabpanel" aria-labelledby="tab-ig" hidden>
+      <div class="kpis" id="ig-kpis"></div>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>Alcance diário</h2>
+          <p class="sub">Contas únicas que viram seu conteúdo em cada dia</p>
+          <div class="chart" id="c-reach"></div>
+        </section>
+        <section class="card">
+          <h2>Novos seguidores</h2>
+          <p class="sub">Seguidores ganhos por dia</p>
+          <div class="chart" id="c-follow"></div>
+        </section>
+      </div>
+
+      <div class="grid2">
+        <section class="card">
+          <h2>Interações por formato</h2>
+          <p class="sub">Média de curtidas, comentários, salvamentos e compartilhamentos por post</p>
+          <div class="hbars" id="c-format"></div>
+        </section>
+        <section class="card">
+          <h2>Visualizações diárias</h2>
+          <p class="sub">Vezes que seu conteúdo foi exibido (Reels, posts e stories)</p>
+          <div class="chart" id="c-views"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Melhores posts do período</h2>
+        <p class="sub">Top 8 por interações; taxa de engajamento = interações ÷ alcance do post</p>
+        <div class="table-wrap"><table id="t-posts"></table></div>
+      </section>
+
+      <details class="card details">
+        <summary>Ver dados diários em tabela</summary>
+        <div class="table-wrap"><table id="t-ig-daily"></table></div>
+      </details>
+    </section>
+
+    <footer class="foot">
+      <p id="foot-note"></p>
+    </footer>
+  </main>
+
+  <div class="tip" id="tip" role="status" hidden></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
