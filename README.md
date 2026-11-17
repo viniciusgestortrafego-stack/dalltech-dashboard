@@ -1,71 +1,75 @@
 # DallTech Dashboard
 
-Dashboard de **Meta Ads** e **Instagram (@dall.tech)**, conectado direto à **Graph API da Meta**. Site estático (HTML/CSS/JS puro, gráficos em SVG) + uma função no servidor (`api/dashboard.js`) que guarda o token e consulta a API.
+Dashboard de performance (Meta Ads, **Google Ads**, Instagram, Analytics, Funil de Vendas, Captação de Leads e Criativos) da DallTech,
+construído **na mesma estrutura do dashboard Home Garden** da Genius: Next.js 16 (App Router) + React 19 + Tailwind 4 + recharts,
+credenciais salvas no servidor (Vercel Blob) e uma página de **Configurações** onde se coloca tudo.
 
-Layout baseado no modelo `/instagram` dos dashboards *genius-**: sidebar + cabeçalho + conteúdo, violeta `#8b5cf6`, fonte Inter, tema escuro por padrão.
+## Páginas
 
-## Como funciona
+| Rota | Página | Fonte dos dados |
+|---|---|---|
+| `/` | Meta Ads | Graph API da Meta (via `/api/meta`) |
+| `/landing-page` | Funil de Vendas | Meta + Google Ads + WooCommerce (opcional) |
+| `/google-ads` | **Google Ads** | Webhook: um script dentro do Google Ads envia os dados |
+| `/analytics` | Analytics (GA4) | Google Analytics Data API (variáveis de ambiente) |
+| `/captacao-leads` | Captação de Leads | Meta (campanhas `[LEAD]`) |
+| `/criativos` | Criativos | Meta (anúncios e criativos) |
+| `/instagram` | Instagram | Graph API da Meta |
+| `/settings` | Configurações | Login + credenciais |
 
-```
-navegador ──GET /api/dashboard──▶ função (Vercel) ──Graph API──▶ Meta Ads + Instagram
-   ▲                                  │ usa META_ACCESS_TOKEN (só no servidor)
-   └──────── JSON pronto (cache 15 min) ◀┘
-```
+O período (de/até) fica na URL (`?from=AAAA-MM-DD&to=AAAA-MM-DD`) e vale para todas as páginas.
 
-- O token **nunca** vai ao navegador. A resposta é cacheada 15 min (`s-maxage=900`) para não estourar o limite da API.
-- Sem token configurado (ou abrindo `index.html` direto), o dashboard mostra **dados de exemplo** com um aviso, e a página **Fontes de dados** diz exatamente o que falta.
-- Com token, tudo vem da API: se uma fonte falhar, aparece o erro na página **Fontes de dados**; nunca se misturam dados de exemplo com dados reais.
+## Como colocar os dados (passo a passo)
 
-## Configurar (Vercel)
+### 1. Variáveis de ambiente (Vercel → Project → Settings → Environment Variables)
 
-Em *Project → Settings → Environment Variables*:
-
-| Variável | Valor |
+| Variável | Para quê |
 |---|---|
-| `META_ACCESS_TOKEN` | Token da Meta com `ads_read`, `instagram_basic`, `instagram_manage_insights` e `pages_read_engagement` (de preferência um token de usuário do sistema, que não expira) |
-| `META_AD_ACCOUNT_ID` | `1321298613137677` (DALL.TECH-AD-01; já é o padrão) |
-| `META_INSTAGRAM_ACCOUNT_ID` | `17841471433460467` (@dall.tech; já é o padrão; **confirme** que é o ID de conta profissional do perfil) |
+| `SETTINGS_AUTH_USER` e `SETTINGS_AUTH_PASSWORD` | Login da página de Configurações (você escolhe) |
+| `BLOB_READ_WRITE_TOKEN` | Criado ao conectar um **Blob store privado** (Vercel → Storage → Create → Blob). Guarda credenciais e dados do Google Ads |
+| `META_GRAPH_VERSION` | Opcional (padrão `v23.0`) |
 
-Depois faça um novo deploy. Veja `.env.example`. Nunca commite o valor do token.
+Depois faça um novo deploy. Veja `.env.example`.
 
-> A rota `/api/dashboard` devolve os números da conta para quem abrir o endereço. Se o deploy for público, ative a proteção de deploy da Vercel (ou coloque login) para não expor os dados.
+### 2. Abra `/settings`, entre com o login e preencha
 
-## O que tem
+- **System User Token - Meta** (Business Manager → Usuários do sistema → Gerar novo token; permissões `ads_read`, `instagram_basic`, `instagram_manage_insights`, `pages_read_engagement`)
+- **ID da Conta de Anúncios** (DALL.TECH-AD-01 = `1321298613137677`)
+- **ID da Conta do Instagram** (ID da conta profissional do `@dall.tech`; o ID `17841471433460467` veio de uma listagem, **confirme** no Meta Business Suite)
+- WooCommerce (opcional, só se a DallTech tiver loja)
+- **Google Ads**: clique em **Gerar nova** na chave do webhook e **Salvar**
 
-- **Meta Ads:** investimento, leads, CPL, cliques no link, CTR e CPM (com variação vs. período anterior); gráficos diários; funil (cliques → visualizações da página → leads); tabela de campanhas.
-- **Instagram (como no modelo):** Visualizações, Seguidores (variação líquida), Interações, Contas Alcançadas, Visitas ao Perfil + **Últimos Conteúdos** (10 posts: alcance, views, seguidores). Extra: gráficos diários de alcance e novos seguidores.
-- **Fontes de dados:** qual conta/perfil foi consultado, IDs, status e o que cada um retornou.
-- Filtro 7/14/30 dias, tema claro/escuro, tooltips por mouse e teclado (← →), tabela diária.
+### 3. Google Ads (o que mais importa para a DallTech)
 
-## Como os números são calculados
+1. Em `/settings`, depois de salvar a chave, copie o **script pronto** (já vem com a URL e a chave preenchidas).
+2. No Google Ads: **Ferramentas → Ações em massa → Scripts → Novo script**, cole, autorize e **agende 1x por dia**. Rode uma vez na hora para testar.
+3. O script envia campanhas (90 dias), palavras-chave (30 dias) e conversões por ação. Cada envio substitui os dias que cobre; reenviar não duplica.
+4. `/settings` mostra quando foi o último envio recebido. A página `/google-ads` mostra investimento, cliques, CPC, CPM, conversões, **leads** (conversões de categorias de lead: formulário, ligação, orçamento, contato...), ROAS, funil, evolução, campanhas, conversões e palavras-chave.
 
-| Card | Origem na API |
-|---|---|
-| Investimento / Impressões | `act_<id>/insights` (`spend`, `impressions`), nível campanha, por dia |
-| Cliques no link | `inline_link_clicks` |
-| Visualizações da página | ação `landing_page_view` |
-| **Leads** | ação `lead` **+** `onsite_conversion.messaging_conversation_started_7d` (formulário/pixel + conversas iniciadas no WhatsApp/Direct). Ajuste em `api/_lib/build.js` se a conta contar leads de outra forma |
-| Alcance diário / Novos seguidores | `<ig>/insights` `reach` e `follower_count` (`period=day`; seguidores só dos últimos 30 dias, limite da API) |
-| Visualizações / Interações / Visitas ao perfil | `views`, `total_interactions`, `profile_views` com `metric_type=total_value`, uma chamada por dia |
-| Últimos Conteúdos | `<ig>/media` + `<media>/insights` (`reach`, `views`, `follows`) |
+### 4. Analytics (GA4), opcional
 
-Observações: o período termina **ontem** (hoje ainda está incompleto, fuso de São Paulo). **Contas Alcançadas** soma o alcance diário (uma conta que viu em dois dias conta duas vezes); o modelo usa o alcance único do período, que é um pouco menor.
+Variáveis de ambiente (servidor): `GOOGLE_ANALYTICS_PROPERTY_ID`, `GOOGLE_ANALYTICS_REFRESH_TOKEN` (escopo `analytics.readonly`), `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`. Sem elas, a página avisa o que falta.
 
-## Rodar e testar
+## Segurança
+
+- O token da Meta e as chaves ficam só no servidor (Blob privado). `/api/credentials` exige login; `/api/config-status` só diz *o que está configurado*.
+- `/api/meta` é um proxy **somente leitura** que só aceita contas e objetos numéricos (`act_<id>`, `<id>/insights`, `<id>/media`...) e remove os links de paginação (eles trariam o token).
+- O webhook do Google Ads exige `Authorization: Bearer <chave>`.
+- As páginas de dados são **públicas para quem tiver o endereço** (como no modelo). Ative a *Deployment Protection* da Vercel se não quiser isso.
+
+## Marca (reaproveitar em outro cliente)
+
+Tudo em `src/config/site.ts` (nome da agência, do cliente, subtítulo, título do navegador, logo em `public/`).
+
+## Desenvolvimento
 
 ```bash
-node test/build.test.js        # testa o montador de dados com respostas simuladas da Graph API
-python3 -m http.server 8000    # só o front, com dados de exemplo
-npx vercel dev                 # front + /api/dashboard (precisa das variáveis de ambiente)
+npm install
+npm run dev      # http://localhost:3000  (sem BLOB_READ_WRITE_TOKEN, as credenciais ficam em memória)
+npm run lint
+npm run build
 ```
 
-## Arquivos
+## Estado da verificação
 
-| Arquivo | Função |
-|---|---|
-| `index.html`, `styles.css`, `app.js` | Interface (páginas `#meta`, `#instagram`, `#fontes`) |
-| `live.js` | Busca `/api/dashboard`; se não houver API, o app usa `data.js` |
-| `data.js` | Dados de exemplo (fictícios) e diagnóstico estático das fontes |
-| `api/dashboard.js` | Função no servidor: lê o token, consulta a Graph API, devolve JSON |
-| `api/_lib/graph.js`, `api/_lib/build.js` | Cliente da Graph API e montagem dos dados |
-| `test/` | Testes do montador |
+Testado de ponta a ponta localmente (login, proteção das credenciais, webhook do Google Ads, páginas), **mas não contra a Graph API da Meta, o GA4 ou um Google Ads reais** (não há token neste ambiente). Se alguma resposta real vier em formato diferente do esperado, as páginas mostram o erro em vez de números inventados.
