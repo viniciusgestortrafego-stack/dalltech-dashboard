@@ -27,6 +27,7 @@
       <nav class="side-nav" aria-label="Seções">
         <a href="#meta" id="nav-meta" data-icon="layout-dashboard"><span>Meta Ads</span></a>
         <a href="#instagram" id="nav-instagram" data-icon="camera"><span>Instagram</span></a>
+        <a href="#fontes" id="nav-fontes" data-icon="database"><span>Fontes de dados</span></a>
       </nav>
     </aside>
 
@@ -46,11 +47,10 @@
       </header>
 
       <main class="content" id="content">
+        <div class="boot" id="boot" role="status">Carregando dados da API da Meta…</div>
         <div class="sample-banner" id="sample-banner" hidden role="note">
           <span class="sample-icon" aria-hidden="true">⚠</span>
-          <p><strong>Dados de exemplo (fictícios).</strong>
-            A conta de anúncios <span id="banner-acc"></span> ainda não tem campanhas e a leitura do Instagram via Windsor.ai está pausada.
-            Veja o <code>README.md</code> para conectar dados reais.</p>
+          <p><strong>Dados de exemplo (fictícios).</strong> <span id="banner-msg"></span> <a class="banner-link" href="#fontes">Ver o que foi encontrado em cada fonte →</a></p>
         </div>
 
         <!-- ================= META ADS ================= -->
@@ -133,6 +133,19 @@
           </details>
         </section>
 
+        <!-- ================= FONTES DE DADOS ================= -->
+        <section id="page-fontes" class="page" hidden>
+          <div class="page-head">
+            <h1>Fontes de dados</h1>
+            <p>O que foi consultado em cada conta e o que cada uma retornou</p>
+          </div>
+          <div class="src-list" id="src-list"></div>
+          <section class="card">
+            <h2>O que cada página mostra hoje</h2>
+            <div class="table-wrap"><table id="t-src-map"></table></div>
+          </section>
+        </section>
+
         <footer class="foot"><p id="foot-note"></p></footer>
       </main>
     </div>
@@ -141,6 +154,7 @@
   <div class="tip" id="tip" role="status" hidden></div>
 
   <script src="data.js"></script>
+  <script src="live.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

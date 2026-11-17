@@ -1,77 +1,71 @@
 # DallTech Dashboard
 
-Dashboard de **tráfego pago (Meta Ads)** e **Instagram (@dall.tech)**. Site estático (HTML + CSS + JS puro, gráficos em SVG, sem dependências e sem build).
+Dashboard de **Meta Ads** e **Instagram (@dall.tech)**, conectado direto à **Graph API da Meta**. Site estático (HTML/CSS/JS puro, gráficos em SVG) + uma função no servidor (`api/dashboard.js`) que guarda o token e consulta a API.
 
-## Rodar localmente
+Layout baseado no modelo `/instagram` dos dashboards *genius-**: sidebar + cabeçalho + conteúdo, violeta `#8b5cf6`, fonte Inter, tema escuro por padrão.
 
-```bash
-python3 -m http.server 8000
-# abra http://localhost:8000
+## Como funciona
+
+```
+navegador ──GET /api/dashboard──▶ função (Vercel) ──Graph API──▶ Meta Ads + Instagram
+   ▲                                  │ usa META_ACCESS_TOKEN (só no servidor)
+   └──────── JSON pronto (cache 15 min) ◀┘
 ```
 
-Ou abra `index.html` direto no navegador. Para publicar, qualquer hospedagem estática serve (ex.: Vercel apontando para a raiz do repositório).
+- O token **nunca** vai ao navegador. A resposta é cacheada 15 min (`s-maxage=900`) para não estourar o limite da API.
+- Sem token configurado (ou abrindo `index.html` direto), o dashboard mostra **dados de exemplo** com um aviso, e a página **Fontes de dados** diz exatamente o que falta.
+- Com token, tudo vem da API: se uma fonte falhar, aparece o erro na página **Fontes de dados**; nunca se misturam dados de exemplo com dados reais.
+
+## Configurar (Vercel)
+
+Em *Project → Settings → Environment Variables*:
+
+| Variável | Valor |
+|---|---|
+| `META_ACCESS_TOKEN` | Token da Meta com `ads_read`, `instagram_basic`, `instagram_manage_insights` e `pages_read_engagement` (de preferência um token de usuário do sistema, que não expira) |
+| `META_AD_ACCOUNT_ID` | `1321298613137677` (DALL.TECH-AD-01; já é o padrão) |
+| `META_INSTAGRAM_ACCOUNT_ID` | `17841471433460467` (@dall.tech; já é o padrão; **confirme** que é o ID de conta profissional do perfil) |
+
+Depois faça um novo deploy. Veja `.env.example`. Nunca commite o valor do token.
+
+> A rota `/api/dashboard` devolve os números da conta para quem abrir o endereço. Se o deploy for público, ative a proteção de deploy da Vercel (ou coloque login) para não expor os dados.
 
 ## O que tem
 
-Layout baseado no modelo `/instagram` de um projeto *genius-** (sidebar + cabeçalho + conteúdo, violeta `#8b5cf6`, fonte Inter, tema escuro por padrão). Navegação por hash: `#meta` e `#instagram`.
+- **Meta Ads:** investimento, leads, CPL, cliques no link, CTR e CPM (com variação vs. período anterior); gráficos diários; funil (cliques → visualizações da página → leads); tabela de campanhas.
+- **Instagram (como no modelo):** Visualizações, Seguidores (variação líquida), Interações, Contas Alcançadas, Visitas ao Perfil + **Últimos Conteúdos** (10 posts: alcance, views, seguidores). Extra: gráficos diários de alcance e novos seguidores.
+- **Fontes de dados:** qual conta/perfil foi consultado, IDs, status e o que cada um retornou.
+- Filtro 7/14/30 dias, tema claro/escuro, tooltips por mouse e teclado (← →), tabela diária.
 
-- **Meta Ads:** investimento, leads, CPL, cliques, CTR e CPM com variação vs. período anterior; gráficos diários de investimento, leads e CPL; funil (cliques → visualizações da página → leads); tabela de campanhas.
-- **Instagram (igual ao modelo):** 5 cards — Visualizações, Seguidores (variação líquida), Interações, Contas Alcançadas, Visitas ao Perfil — e **Últimos Conteúdos** (10 posts: data, legenda, Alcance, Views, Seguidores). Extra: gráficos diários de alcance e novos seguidores.
-- Filtro de período (7/14/30 dias), tema claro/escuro, tooltips por hover e teclado (setas ← →), tabela diária em cada página.
+## Como os números são calculados
 
-## ⚠️ Estado atual: dados de exemplo
+| Card | Origem na API |
+|---|---|
+| Investimento / Impressões | `act_<id>/insights` (`spend`, `impressions`), nível campanha, por dia |
+| Cliques no link | `inline_link_clicks` |
+| Visualizações da página | ação `landing_page_view` |
+| **Leads** | ação `lead` **+** `onsite_conversion.messaging_conversation_started_7d` (formulário/pixel + conversas iniciadas no WhatsApp/Direct). Ajuste em `api/_lib/build.js` se a conta contar leads de outra forma |
+| Alcance diário / Novos seguidores | `<ig>/insights` `reach` e `follower_count` (`period=day`; seguidores só dos últimos 30 dias, limite da API) |
+| Visualizações / Interações / Visitas ao perfil | `views`, `total_interactions`, `profile_views` com `metric_type=total_value`, uma chamada por dia |
+| Últimos Conteúdos | `<ig>/media` + `<media>/insights` (`reach`, `views`, `follows`) |
 
-`data.js` gera dados **fictícios** (marcados com um aviso na tela) porque, na criação do dashboard:
+Observações: o período termina **ontem** (hoje ainda está incompleto, fuso de São Paulo). **Contas Alcançadas** soma o alcance diário (uma conta que viu em dois dias conta duas vezes); o modelo usa o alcance único do período, que é um pouco menor.
 
-- a conta de anúncios **DALL.TECH-AD-01** (`1321298613137677`) não tinha nenhuma campanha nem gasto em todo o histórico;
-- a leitura do Instagram pelo **Windsor.ai** estava pausada (plano Free permite 1 conta; há 15 conectadas).
+## Rodar e testar
 
-## Conectar dados reais
-
-`data.js` é o único ponto de troca. Substitua `window.DASHBOARD_DATA` por um objeto no formato abaixo e use `sample: false` (o aviso some sozinho):
-
-```js
-window.DASHBOARD_DATA = {
-  sample: false,
-  account: { adAccount: 'DALL.TECH-AD-01', currency: 'BRL' },
-  days: ['2026-09-17', /* ... 60 dias consecutivos, o mais recente por último */],
-  campaigns: [
-    {
-      id: 'c1', name: 'Nome da campanha', objective: 'Leads', status: 'Ativa', // ou 'Pausada'
-      daily: [{ spend: 72.5, impressions: 3000, clicks: 48, lpv: 39, leads: 4 } /* um item por dia de `days` */],
-    },
-  ],
-  instagram: {
-    handle: '@dall.tech',
-    daily: [{ reach: 1150, views: 2100, interactions: 90, profile_views: 25, new_followers: 7 } /* um por dia */],
-    posts: [{ date: '2026-11-10', type: 'Reel', /* 'Reel' | 'Carrossel' | 'Imagem' */ caption: '...',
-              reach: 2300, views: 4200, follows: 6,
-              permalink: 'https://www.instagram.com/p/...', thumbnail: 'https://...' /* ou null */ }],
-  },
-};
+```bash
+node test/build.test.js        # testa o montador de dados com respostas simuladas da Graph API
+python3 -m http.server 8000    # só o front, com dados de exemplo
+npx vercel dev                 # front + /api/dashboard (precisa das variáveis de ambiente)
 ```
-
-Mapeamento das fontes:
-
-| Campo | Meta Ads (`ads_get_ad_entities`) | Instagram (Windsor `instagram`) |
-|---|---|---|
-| `spend` | `amount_spent` | — |
-| `impressions`, `clicks` | `impressions`, `link_click` | — |
-| `lpv`, `leads` | `landing_page_view`, `lead` | — |
-| `reach`, `views` | — | `reach_1d`, `views` |
-| `interactions` | — | `total_interactions` |
-| `profile_views`, `new_followers` | — | `profile_views_1d`, `follower_count_1d` |
-| posts | — | `media_reach`, `media_views`, `media_follows`, `media_permalink`, `media_thumbnail_url`, `media_caption`, `timestamp` |
-
-> Nota: o card **Contas Alcançadas** soma o alcance diário. Com dados reais, prefira o alcance único do período (`metric=reach` com `metric_type=total_value`), como faz o modelo — a soma diária conta a mesma conta mais de uma vez.
-
-Para gerar o `data.js` real, rode o export (Meta Ads com `level=campaign` e `time_increment=1`; Windsor com os campos acima) e grave o resultado nesse formato.
 
 ## Arquivos
 
 | Arquivo | Função |
 |---|---|
-| `index.html` | Estrutura da página |
-| `styles.css` | Tokens de cor (claro/escuro), sidebar e layout responsivo |
-| `app.js` | Cálculos, KPIs, gráficos SVG, tabelas e interações |
-| `data.js` | Dados (exemplo, hoje) |
+| `index.html`, `styles.css`, `app.js` | Interface (páginas `#meta`, `#instagram`, `#fontes`) |
+| `live.js` | Busca `/api/dashboard`; se não houver API, o app usa `data.js` |
+| `data.js` | Dados de exemplo (fictícios) e diagnóstico estático das fontes |
+| `api/dashboard.js` | Função no servidor: lê o token, consulta a Graph API, devolve JSON |
+| `api/_lib/graph.js`, `api/_lib/build.js` | Cliente da Graph API e montagem dos dados |
+| `test/` | Testes do montador |

@@ -8,6 +8,7 @@
  * Formato resumido:
  *   days:       ['YYYY-MM-DD', ...]  (60 dias consecutivos, o mais recente por último)
  *   campaigns:  [{ id, name, objective, status, daily: [{spend, impressions, clicks, lpv, leads}, ...] }]
+ *   sources / sourcesCheckedAt: diagnóstico das conexões (página "Fontes de dados")
  *   instagram:  { handle, daily: [{reach, views, interactions, profile_views, new_followers}, ...],
  *                 posts: [{date, type, caption, reach, views, follows, permalink, thumbnail}] }
  */
@@ -122,5 +123,33 @@
     days,
     campaigns,
     instagram: { handle: '@dall.tech', daily: igDaily, posts },
+    // Diagnóstico REAL das conexões (verificado em 17/11/2026) — exibido na página "Fontes de dados"
+    sourcesCheckedAt: '2026-11-17',
+    sources: [
+      {
+        name: 'Meta Ads', title: 'Conta de anúncios', state: 'empty', stateLabel: 'Sem dados',
+        facts: [
+          ['Conta', 'DALL.TECH-AD-01'],
+          ['ID da conta', '1321298613137677'],
+          ['Empresa (BM)', 'dall.tech · 571754498808054'],
+          ['Status da conta', 'Ativa, com forma de pagamento'],
+          ['Moeda e fuso', 'BRL · America/Sao_Paulo'],
+          ['Campanhas encontradas', '0'],
+          ['Gasto total (todo o histórico)', 'R$ 0,00'],
+          ['Instagram vinculado à conta', 'Nenhum'],
+        ],
+        note: 'A conta existe e está ativa, mas nunca teve campanha nem gasto. Rascunhos não puderam ser consultados (recurso ainda não liberado para esta conta). Se a campanha da DallTech está em outra conta de anúncios, é preciso apontar qual.',
+      },
+      {
+        name: 'Instagram', title: 'Perfil @dall.tech', state: 'blocked', stateLabel: 'Aguardando token',
+        facts: [
+          ['Perfil', 'DallTech | Empacotamento e Envase (dall.tech)'],
+          ['ID do Instagram', '17841471433460467 (a confirmar na API)'],
+          ['Vinculado à conta de anúncios', 'Nenhum perfil retornado pela API de anúncios'],
+          ['Leitura de métricas', 'Ainda não feita: falta o token da Meta no servidor'],
+        ],
+        note: 'Defina META_ACCESS_TOKEN no ambiente (com instagram_manage_insights) e o dashboard passa a ler o perfil direto da Graph API.',
+      },
+    ],
   };
 })();

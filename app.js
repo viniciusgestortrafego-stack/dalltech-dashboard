@@ -1,6 +1,11 @@
-(function () {
+(async function () {
   'use strict';
-  const D = window.DASHBOARD_DATA;
+  // dados reais da API da Meta (/api/dashboard); sem API configurada, usa os dados de exemplo de data.js
+  let live = null;
+  try { live = window.loadLive ? await window.loadLive() : null; } catch (e) { live = null; }
+  const D = live || window.DASHBOARD_DATA;
+  const bootEl = document.getElementById('boot');
+  if (bootEl) bootEl.remove();
   const NS = 'http://www.w3.org/2000/svg';
   const $ = (s, r) => (r || document).querySelector(s);
   const N = D.days.length;
@@ -33,6 +38,7 @@
     'radar': [['path', { d: 'M19.07 4.93A10 10 0 0 0 6.99 3.34' }], ['path', { d: 'M4 6h.01' }], ['path', { d: 'M2.29 9.62A10 10 0 1 0 21.31 8.35' }], ['path', { d: 'M16.24 7.76A6 6 0 1 0 8.23 16.67' }], ['path', { d: 'M12 18h.01' }], ['path', { d: 'M17.99 11.66A6 6 0 0 1 15.77 16.67' }], ['circle', { cx: 12, cy: 12, r: 2 }], ['path', { d: 'm13.41 10.59 5.66-5.66' }]],
     'circle-user': [['circle', { cx: 12, cy: 12, r: 10 }], ['circle', { cx: 12, cy: 10, r: 3 }], ['path', { d: 'M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662' }]],
     'layout-dashboard': [['rect', { width: 7, height: 9, x: 3, y: 3, rx: 1 }], ['rect', { width: 7, height: 5, x: 14, y: 3, rx: 1 }], ['rect', { width: 7, height: 9, x: 14, y: 12, rx: 1 }], ['rect', { width: 7, height: 5, x: 3, y: 16, rx: 1 }]],
+    'database': [['ellipse', { cx: 12, cy: 5, rx: 9, ry: 3 }], ['path', { d: 'M3 5V19A9 3 0 0 0 21 19V5' }], ['path', { d: 'M3 12A9 3 0 0 0 21 12' }]],
     'camera': [['path', { d: 'M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z' }], ['circle', { cx: 12, cy: 13, r: 3 }]],
   };
   function icon(name, size) {
@@ -326,10 +332,14 @@
       ? el('a', { class: 'post', href: link, target: '_blank', rel: 'noopener noreferrer' })
       : el('div', { class: 'post' });
     const img = safeUrl(p.thumbnail);
+    const placeholder = () => el('div', { class: 'thumb', 'data-type': p.type, text: p.type });
+    let thumb = placeholder();
+    if (img) {
+      thumb = el('img', { class: 'thumb', src: img, alt: p.caption || 'Conteúdo do Instagram', loading: 'lazy' });
+      thumb.addEventListener('error', () => thumb.replaceWith(placeholder()), { once: true });
+    }
     root.append(
-      img
-        ? el('img', { class: 'thumb', src: img, alt: p.caption || 'Conteúdo do Instagram', loading: 'lazy' })
-        : el('div', { class: 'thumb', 'data-type': p.type, text: p.type }),
+      thumb,
       el('div', { class: 'post-body' },
         el('p', { class: 'post-date', text: new Date(p.date + 'T12:00:00Z').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) }),
         p.caption ? el('p', { class: 'post-cap', text: p.caption }) : null,
@@ -378,15 +388,50 @@
   }
 
   // ======================================================================
+  //                             FONTES DE DADOS
+  // ======================================================================
+  const STATE_UI = {
+    ok: { cls: 'good', icon: '✓ ' },
+    empty: { cls: 'warn', icon: '○ ' },
+    blocked: { cls: 'bad', icon: '✕ ' },
+  };
+  function renderFontes() {
+    const list = $('#src-list');
+    list.textContent = '';
+    (D.sources || []).forEach((s) => {
+      const ui = STATE_UI[s.state] || STATE_UI.empty;
+      const dl = el('dl');
+      s.facts.forEach(([k, v]) => dl.append(el('dt', { text: k }), el('dd', { text: v })));
+      list.append(el('section', { class: 'src' },
+        el('div', { class: 'src-head' },
+          el('div', null, el('div', { class: 'src-name', text: s.name }), el('h2', { class: 'src-title', text: s.title })),
+          el('span', { class: 'pill ' + ui.cls, text: ui.icon + s.stateLabel })),
+        dl,
+        s.note ? el('p', { class: 'src-note', text: s.note }) : null));
+    });
+    fillTable($('#t-src-map'), [
+      { label: 'Página', txt: true, cell: (r) => r[0] },
+      { label: 'Vem de', txt: true, cell: (r) => r[1] },
+      { label: 'Situação da fonte', txt: true, cell: (r) => r[2] },
+      { label: 'Números exibidos', txt: true, cell: (r) => r[3] },
+    ], (D.sources || []).map((s) => [s.name, s.title, s.stateLabel, D.sample ? 'Exemplo (fictícios)' : 'Reais da API']));
+    if (D.sourcesCheckedAt) $('#page-fontes .page-head p').textContent = 'O que foi consultado em cada conta e o que cada uma retornou · verificado em ' + D.sourcesCheckedAt.split('-').reverse().join('/');
+  }
+
+  // ======================================================================
   //                       CASCA: ROTAS, FILTRO, TEMA
   // ======================================================================
-  const PAGES = ['meta', 'instagram'];
+  const PAGES = ['meta', 'instagram', 'fontes'];
+  const TITLES = { meta: 'Meta Ads', instagram: 'Instagram', fontes: 'Fontes de dados' };
 
   function render() {
     const b = bounds();
     $('#range-label').textContent = `${dm(D.days[b.from])} a ${dm(D.days[N - 1])} · vs. ${dm(D.days[b.pFrom])} a ${dm(D.days[b.pTo - 1])}`;
     hideTip();
-    if (state.tab === 'meta') renderMeta(); else renderInstagram();
+    $('.filters').hidden = state.tab === 'fontes';
+    if (state.tab === 'meta') renderMeta();
+    else if (state.tab === 'instagram') renderInstagram();
+    else renderFontes();
   }
 
   function applyRoute() {
@@ -397,7 +442,7 @@
       const a = $('#nav-' + pg);
       if (pg === state.tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
-    document.title = (state.tab === 'meta' ? 'Meta Ads' : 'Instagram') + ' · DallTech Dashboard';
+    document.title = TITLES[state.tab] + ' · DallTech Dashboard';
     $('#content').scrollTop = 0;
     render();
   }
@@ -425,11 +470,16 @@
   paintThemeBtn();
 
   // banner / rodapé
-  $('#banner-acc').textContent = D.account.adAccount;
+  const ls = window.LIVE_STATUS;
+  $('#banner-msg').textContent = ls && ls.configured === false
+    ? 'A API está no ar, mas falta configurar ' + (ls.missing || []).join(', ') + ' no servidor.'
+    : ls && ls.error
+      ? ls.error
+      : 'A conexão direta com a API da Meta ainda não está ativa neste ambiente.';
   $('#sample-banner').hidden = !D.sample;
   $('#foot-note').textContent = D.sample
     ? 'Dados fictícios gerados em data.js apenas para demonstrar o layout.'
-    : `Fontes: Meta Ads (${D.account.adAccount}) e Instagram ${IG.handle}.`;
+    : `Fontes: Meta Ads (${D.account.adAccount}) e Instagram ${IG.handle} · atualizado em ${new Date(D.generatedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}.`;
 
   // redesenha os gráficos quando a largura muda
   let lastW = window.innerWidth, timer;
