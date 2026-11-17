@@ -233,13 +233,13 @@ export function SettingsForm() {
 
         <div className="space-y-6">
           <Field name="metaToken" type="password" label="System User Token - Meta" placeholder="EAA..." value={form.metaToken} onChange={onChange}
-            hint="Business Manager → Usuários do sistema → Gerar novo token (permissões: ads_read, instagram_basic, instagram_manage_insights, pages_read_engagement)" />
+            hint="Business Manager → Usuários do sistema → Gerar novo token" />
           <Field name="adAccountId" label="ID da Conta de Anúncios" placeholder="act_123456789" value={form.adAccountId} onChange={onChange}
             hint='URL do Gerenciador, após "act="' />
           <Field name="instagramAccountId" label="ID da Conta do Instagram" placeholder="17841400..." value={form.instagramAccountId} onChange={onChange}
             hint="ID da conta profissional do Instagram vinculada à Página do Facebook (Meta Business Suite → Configurações → Contas)" />
           <Field name="wooStoreUrl" label="URL da Loja - WooCommerce" placeholder="https://minhaloja.com.br" value={form.wooStoreUrl} onChange={onChange}
-            hint="Usada pra puxar as UTMs de venda no Funil de Vendas (deixe em branco se não usa WooCommerce)" />
+            hint="Usada pra puxar as UTMs de venda no Funil de Vendas" />
           <Field name="wooConsumerKey" type="password" label="Consumer Key - WooCommerce" placeholder="ck_..." value={form.wooConsumerKey} onChange={onChange}
             hint="WordPress → WooCommerce → Configurações → Avançado → REST API" />
           <Field name="wooConsumerSecret" type="password" label="Consumer Secret - WooCommerce" placeholder="cs_..." value={form.wooConsumerSecret} onChange={onChange}
@@ -267,7 +267,7 @@ export function SettingsForm() {
                 Gerar nova
               </button>
             </div>
-            <p className={HINT}>Cole essa chave no script como cabeçalho Authorization: Bearer — gerar uma nova invalida a antiga. Clique em Salvar depois de gerar.</p>
+            <p className={HINT}>Cole essa chave no script como cabeçalho Authorization: Bearer — gerar uma nova invalida a antiga</p>
           </div>
 
           <div className="space-y-2">

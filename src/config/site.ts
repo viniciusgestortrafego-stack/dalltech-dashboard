@@ -4,5 +4,6 @@ export const siteConfig = {
   clientName: "DallTech",
   subtitle: "central de performance",
   browserTitle: "Dashboard DallTech",
-  logoSrc: "/logo.svg", // troque por /logo.png (arquivo em public/) se quiser usar o logo da agência
+  logoSrc: "/logo.png", // coloque o logo da agência em public/logo.png
+  logoFallbackSrc: "/logo.svg", // usado enquanto não existir public/logo.png
 };

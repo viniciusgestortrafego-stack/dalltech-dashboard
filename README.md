@@ -33,7 +33,7 @@ Depois faça um novo deploy. Veja `.env.example`.
 
 ### 2. Abra `/settings`, entre com o login e preencha
 
-- **System User Token - Meta** (Business Manager → Usuários do sistema → Gerar novo token; permissões `ads_read`, `instagram_basic`, `instagram_manage_insights`, `pages_read_engagement`)
+- **System User Token - Meta** (Business Manager → Usuários do sistema → Gerar novo token; o token precisa das permissões `ads_read`, `instagram_basic`, `instagram_manage_insights`, `pages_read_engagement`)
 - **ID da Conta de Anúncios** (DALL.TECH-AD-01 = `1321298613137677`)
 - **ID da Conta do Instagram** (ID da conta profissional do `@dall.tech`; o ID `17841471433460467` veio de uma listagem, **confirme** no Meta Business Suite)
 - WooCommerce (opcional, só se a DallTech tiver loja)
@@ -59,7 +59,7 @@ Variáveis de ambiente (servidor): `GOOGLE_ANALYTICS_PROPERTY_ID`, `GOOGLE_ANALY
 
 ## Marca (reaproveitar em outro cliente)
 
-Tudo em `src/config/site.ts` (nome da agência, do cliente, subtítulo, título do navegador, logo em `public/`).
+Tudo em `src/config/site.ts` (nome da agência, do cliente, subtítulo, título do navegador). **Logo:** coloque o arquivo da agência em `public/logo.png`; enquanto ele não existir, o menu usa `public/logo.svg`. O botão **Modo Claro/Modo Escuro** fica no rodapé do menu (padrão: escuro).
 
 ## Desenvolvimento
 
