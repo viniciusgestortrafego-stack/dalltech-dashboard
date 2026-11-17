@@ -1,5 +1,8 @@
-// Credenciais e IDs do cliente, salvos no servidor (Vercel Blob) pela página de Configurações.
-export type Credentials = {
+// Shared shape only — no "use client" here on purpose, so this file can be
+// safely imported both by server routes (credentialsStore.ts) and by the
+// Settings form (for its local form state). It holds no live values itself.
+
+export interface Credentials {
   metaToken: string;
   adAccountId: string;
   instagramAccountId: string;
@@ -7,7 +10,11 @@ export type Credentials = {
   wooConsumerKey: string;
   wooConsumerSecret: string;
   googleAdsWebhookSecret: string;
-};
+  /** ID da conta Google Ads do cliente (só números). Sem ele, vale GOOGLE_ADS_CUSTOMER_ID. */
+  googleAdsCustomerId: string;
+  /** ID da propriedade do GA4. Sem ele, vale GOOGLE_ANALYTICS_PROPERTY_ID. */
+  ga4PropertyId: string;
+}
 
 export const emptyCredentials: Credentials = {
   metaToken: "",
@@ -17,21 +24,6 @@ export const emptyCredentials: Credentials = {
   wooConsumerKey: "",
   wooConsumerSecret: "",
   googleAdsWebhookSecret: "",
+  googleAdsCustomerId: "",
+  ga4PropertyId: "",
 };
-
-// Aceita só os campos conhecidos, como texto, sem espaços nas pontas
-export function sanitizeCredentials(input: unknown): Credentials {
-  const source = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const result = { ...emptyCredentials };
-  for (const key of Object.keys(emptyCredentials) as (keyof Credentials)[]) {
-    const value = source[key];
-    if (typeof value === "string") result[key] = value.trim().slice(0, 4096);
-  }
-  return result;
-}
-
-// "act_123", "123" ou "https://...act=123" → "act_123"
-export function normalizeAdAccountId(value: string): string {
-  const digits = value.match(/\d{5,}/)?.[0];
-  return digits ? `act_${digits}` : "";
-}

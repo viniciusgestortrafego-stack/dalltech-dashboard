@@ -22,15 +22,9 @@ export function EventBreakdownList({ items }: EventBreakdownListProps) {
   return (
     <div className="space-y-4">
       {items.map((item, i) => (
-        <div
-          key={item.eventName}
-          className="flex justify-between items-center text-sm border-b border-card-border pb-2 last:border-0"
-        >
+        <div key={item.eventName} className="flex justify-between items-center text-sm border-b border-card-border pb-2 last:border-0">
           <span className="font-bold flex items-center gap-2">
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
-            ></span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PALETTE[i % PALETTE.length] }}></span>
             {EVENT_LABELS[item.eventName] ?? item.eventName}
           </span>
           <span className="font-bold text-primary">{formatNumber(item.count)}</span>

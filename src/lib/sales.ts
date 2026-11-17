@@ -1,4 +1,23 @@
-export type SalesBaseMetrics = {
+export interface SalesRow {
+  date: string;
+  dateObj: Date | null;
+  investimento: number;
+  custoPorCompra: number;
+  compras: number;
+  receita: number;
+  roas: number;
+  cliques: number;
+  impressoes: number;
+  visitasLP: number;
+  checkoutsIniciados: number;
+  ctr: number;
+  cpm: number;
+  connectRate: number;
+  taxaConversaoCheckout: number;
+  cpc: number;
+}
+
+export interface SalesBaseMetrics {
   investimento: number;
   compras: number;
   receita: number;
@@ -6,9 +25,9 @@ export type SalesBaseMetrics = {
   cliques: number;
   visitasLP: number;
   checkoutsIniciados: number;
-};
+}
 
-export type SalesDerivedMetrics = {
+export interface SalesDerivedMetrics {
   custoPorCompra: number;
   roas: number;
   ctr: number;
@@ -16,25 +35,9 @@ export type SalesDerivedMetrics = {
   cpc: number;
   connectRate: number;
   taxaConversaoCheckout: number;
-};
+}
 
-export type SalesRow = SalesBaseMetrics &
-  SalesDerivedMetrics & {
-    date: string;
-    dateObj: Date | null;
-  };
-
-export type SalesTotals = SalesBaseMetrics & SalesDerivedMetrics;
-
-export function deriveSalesMetrics({
-  investimento,
-  compras,
-  receita,
-  impressoes,
-  cliques,
-  visitasLP,
-  checkoutsIniciados,
-}: SalesBaseMetrics): SalesDerivedMetrics {
+export function deriveSalesMetrics({ investimento, compras, receita, impressoes, cliques, visitasLP, checkoutsIniciados }: SalesBaseMetrics): SalesDerivedMetrics {
   return {
     custoPorCompra: compras > 0 ? investimento / compras : 0,
     roas: investimento > 0 ? receita / investimento : 0,
@@ -46,35 +49,30 @@ export function deriveSalesMetrics({
   };
 }
 
-function sum(rows: SalesBaseMetrics[], key: keyof SalesBaseMetrics): number {
-  return rows.reduce((total, row) => total + row[key], 0);
-}
-
-export function aggregateSalesRows(rows: SalesBaseMetrics[]): SalesTotals {
-  const base: SalesBaseMetrics = {
-    investimento: sum(rows, "investimento"),
-    compras: sum(rows, "compras"),
-    receita: sum(rows, "receita"),
-    impressoes: sum(rows, "impressoes"),
-    cliques: sum(rows, "cliques"),
-    visitasLP: sum(rows, "visitasLP"),
-    checkoutsIniciados: sum(rows, "checkoutsIniciados"),
-  };
-  return { ...base, ...deriveSalesMetrics(base) };
-}
-
-export function filterRowsByRange<T extends { dateObj: Date | null }>(
-  rows: T[],
-  from?: string,
-  to?: string,
-): T[] {
+export function filterRowsByRange(rows: SalesRow[], from?: string, to?: string): SalesRow[] {
   if (!from && !to) return rows;
-  const start = from ? new Date(`${from}T00:00:00`) : null;
-  const end = to ? new Date(`${to}T23:59:59`) : null;
+  const fromDate = from ? new Date(`${from}T00:00:00`) : null;
+  const toDate = to ? new Date(`${to}T23:59:59`) : null;
   return rows.filter((row) => {
     if (!row.dateObj) return false;
-    if (start && row.dateObj < start) return false;
-    if (end && row.dateObj > end) return false;
+    if (fromDate && row.dateObj < fromDate) return false;
+    if (toDate && row.dateObj > toDate) return false;
     return true;
   });
+}
+
+export type SalesTotals = SalesBaseMetrics & SalesDerivedMetrics;
+
+export function aggregateSalesRows(rows: SalesRow[]): SalesTotals {
+  const base: SalesBaseMetrics = {
+    investimento: rows.reduce((acc, row) => acc + row.investimento, 0),
+    compras: rows.reduce((acc, row) => acc + row.compras, 0),
+    receita: rows.reduce((acc, row) => acc + row.receita, 0),
+    impressoes: rows.reduce((acc, row) => acc + row.impressoes, 0),
+    cliques: rows.reduce((acc, row) => acc + row.cliques, 0),
+    visitasLP: rows.reduce((acc, row) => acc + row.visitasLP, 0),
+    checkoutsIniciados: rows.reduce((acc, row) => acc + row.checkoutsIniciados, 0),
+  };
+
+  return { ...base, ...deriveSalesMetrics(base) };
 }

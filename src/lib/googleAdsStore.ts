@@ -1,8 +1,11 @@
-// Dados enviados pelo script do Google Ads (webhook). Só importe de route.ts (servidor).
-import { readJson, writeJson } from "./blobJson";
+// Only ever import this from route.ts handlers (server-only by nature in the
+// App Router) — mirrors credentialsStore.ts's pattern for the same Blob store.
+import { get, put } from "@vercel/blob";
 
-export type GoogleAdsRow = {
-  date: string; // AAAA-MM-DD
+const PATHNAME = "dashboard/google-ads-data.json";
+
+export interface GoogleAdsRow {
+  date: string; // YYYY-MM-DD
   campaignId: string;
   campaignName: string;
   spend: number;
@@ -10,62 +13,59 @@ export type GoogleAdsRow = {
   clicks: number;
   conversions: number;
   conversionValue: number;
-};
+}
 
-export type GoogleAdsKeywordRow = {
+export interface GoogleAdsKeywordRow {
   date: string;
   keyword: string;
-  matchType: string; // EXACT | PHRASE | BROAD
+  matchType: string;
   spend: number;
   impressions: number;
   clicks: number;
   conversions: number;
-};
+  conversionValue: number;
+}
 
-export type GoogleAdsConversionRow = {
+export interface GoogleAdsConversionRow {
   date: string;
   conversionActionName: string;
-  conversionActionCategory: string; // ex.: PURCHASE, SUBMIT_LEAD_FORM, PHONE_CALL_LEAD
   conversions: number;
   conversionValue: number;
-};
+}
 
-export type GoogleAdsData = {
+interface GoogleAdsData {
+  updatedAt: string;
   rows: GoogleAdsRow[];
   keywords: GoogleAdsKeywordRow[];
-  conversions: GoogleAdsConversionRow[];
-  updatedAt: string; // ISO do último envio recebido
-};
+  conversionBreakdown: GoogleAdsConversionRow[];
+}
 
-const PATHNAME = "dashboard/google-ads.json";
-const EMPTY: GoogleAdsData = { rows: [], keywords: [], conversions: [], updatedAt: "" };
+const emptyData: GoogleAdsData = { updatedAt: "", rows: [], keywords: [], conversionBreakdown: [] };
 
 export async function getGoogleAdsData(): Promise<GoogleAdsData> {
-  return readJson<GoogleAdsData>(PATHNAME, EMPTY);
+  try {
+    const result = await get(PATHNAME, { access: "private", useCache: false });
+    if (!result || result.statusCode !== 200) return emptyData;
+    const text = await new Response(result.stream).text();
+    return { ...emptyData, ...JSON.parse(text) };
+  } catch (error) {
+    console.error("Failed to read Google Ads data:", error);
+    return emptyData;
+  }
 }
 
-// Cada envio substitui os dias que ele cobre e preserva os dias fora dessa janela.
-function mergeByDate<T extends { date: string }>(current: T[], incoming: T[]): T[] {
-  if (incoming.length === 0) return current;
-  const dates = incoming.map((row) => row.date).sort();
-  const first = dates[0];
-  const last = dates[dates.length - 1];
-  const kept = current.filter((row) => row.date < first || row.date > last);
-  return [...kept, ...incoming].sort((a, b) => a.date.localeCompare(b.date));
-}
-
-export async function saveGoogleAdsData(input: {
+interface SaveGoogleAdsDataInput {
   rows: GoogleAdsRow[];
   keywords: GoogleAdsKeywordRow[];
-  conversions: GoogleAdsConversionRow[];
-}): Promise<GoogleAdsData> {
-  const current = await getGoogleAdsData();
-  const next: GoogleAdsData = {
-    rows: mergeByDate(current.rows, input.rows),
-    keywords: mergeByDate(current.keywords, input.keywords),
-    conversions: mergeByDate(current.conversions, input.conversions),
-    updatedAt: new Date().toISOString(),
-  };
-  await writeJson(PATHNAME, next);
-  return next;
+  conversionBreakdown: GoogleAdsConversionRow[];
+}
+
+export async function saveGoogleAdsData({ rows, keywords, conversionBreakdown }: SaveGoogleAdsDataInput): Promise<void> {
+  const data: GoogleAdsData = { updatedAt: new Date().toISOString(), rows, keywords, conversionBreakdown };
+  await put(PATHNAME, JSON.stringify(data), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
 }

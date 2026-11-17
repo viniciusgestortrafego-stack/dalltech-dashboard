@@ -1,96 +1,113 @@
-// Chamadas da página /instagram. Tudo passa por /api/meta (o token fica no servidor).
 export class InstagramFetchError extends Error {}
 
-type MetaResponse<T> = { ok: boolean; data: T & { error?: string } };
-
-async function metaGet<T>(endpoint: string, params: Record<string, string>): Promise<MetaResponse<T>> {
-  const query = new URLSearchParams({ endpoint, ...params });
-  const res = await fetch(`/api/meta?${query.toString()}`, { cache: "no-store" });
-  const data = await res.json();
-  return { ok: res.ok, data };
+async function callGraphApi(endpoint: string, params: Record<string, string>): Promise<{ ok: boolean; data: Record<string, unknown> }> {
+  const searchParams = new URLSearchParams({ endpoint, ...params });
+  const response = await fetch(`/api/meta?${searchParams.toString()}`);
+  const data = await response.json();
+  return { ok: response.ok, data };
 }
 
-type InsightMetric = {
-  name: string;
-  total_value?: { value?: number };
-  values?: { value?: number }[];
-};
-
-async function insights(endpoint: string, params: Record<string, string>): Promise<InsightMetric[]> {
-  const { ok, data } = await metaGet<{ data?: InsightMetric[] }>(`${endpoint}/insights`, params);
-  if (!ok) throw new InstagramFetchError(data.error || "Erro ao buscar dados do Instagram");
-  return data.data || [];
+interface FetchInstagramMetricsParams {
+  instagramAccountId: string;
+  since: string;
+  until: string;
 }
 
-const toUnix = (date: string, endOfDay: boolean) =>
-  Math.floor(new Date(`${date}T${endOfDay ? "23:59:59" : "00:00:00"}`).getTime() / 1000);
-
-// a API só aceita ~30 dias por consulta de insights
-function splitRange(since: number, until: number, step = 2505600) {
-  const ranges: { since: number; until: number }[] = [];
-  for (let start = since; start <= until; ) {
-    const end = Math.min(start + step, until);
-    ranges.push({ since: start, until: end });
-    start = end + 1;
-  }
-  return ranges;
-}
-
-export type InstagramSummary = {
+export interface InstagramMetrics {
   views: number;
   followerChange: number;
   interactions: number;
   reach: number;
   profileViews: number;
-};
+}
 
-export async function fetchInstagramSummary(args: {
-  instagramAccountId: string;
-  since: string;
-  until: string;
-}): Promise<InstagramSummary> {
-  const ranges = splitRange(toUnix(args.since, false), toUnix(args.until, true));
-  const [totals, followers] = await Promise.all([
+function toUnixSeconds(dateStr: string, endOfDay: boolean): number {
+  return Math.floor(new Date(`${dateStr}T${endOfDay ? "23:59:59" : "00:00:00"}`).getTime() / 1000);
+}
+
+async function fetchInsights(instagramAccountId: string, params: Record<string, string>): Promise<Record<string, unknown>[]> {
+  const { ok, data } = await callGraphApi(`${instagramAccountId}/insights`, params);
+  if (!ok) {
+    throw new InstagramFetchError((data.error as string) || "Erro ao buscar dados do Instagram");
+  }
+  return (data.data as Record<string, unknown>[]) || [];
+}
+
+function totalValueFor(rows: Record<string, unknown>[], metric: string): number {
+  const row = rows.find((item) => item.name === metric);
+  const totalValue = row?.total_value as { value?: number } | undefined;
+  return totalValue?.value ?? 0;
+}
+
+// The Graph API rejects metric_type=total_value requests whose since/until span
+// is 30 days or more ("date range... cannot be more than 30 days"), so a plain
+// "last 30 days" selection (inclusive) trips it. Split into <=29-day windows and
+// sum the results instead of capping what the user can select.
+const MAX_WINDOW_DAYS = 29;
+
+function splitIntoWindows(sinceUnix: number, untilUnix: number): { since: number; until: number }[] {
+  const maxSpanSeconds = MAX_WINDOW_DAYS * 86400;
+  const windows: { since: number; until: number }[] = [];
+  let windowStart = sinceUnix;
+  while (windowStart <= untilUnix) {
+    const windowEnd = Math.min(windowStart + maxSpanSeconds, untilUnix);
+    windows.push({ since: windowStart, until: windowEnd });
+    windowStart = windowEnd + 1;
+  }
+  return windows;
+}
+
+export async function fetchInstagramMetrics({ instagramAccountId, since, until }: FetchInstagramMetricsParams): Promise<InstagramMetrics> {
+  const sinceUnix = toUnixSeconds(since, false);
+  const untilUnix = toUnixSeconds(until, true);
+  const windows = splitIntoWindows(sinceUnix, untilUnix);
+
+  const [aggregateRowsPerWindow, followerRowsPerWindow] = await Promise.all([
     Promise.all(
-      ranges.map((r) =>
-        insights(args.instagramAccountId, {
+      windows.map((window) =>
+        fetchInsights(instagramAccountId, {
           metric: "reach,profile_views,total_interactions,views",
           period: "day",
           metric_type: "total_value",
-          since: String(r.since),
-          until: String(r.until),
-        }),
-      ),
+          since: String(window.since),
+          until: String(window.until),
+        })
+      )
     ),
     Promise.all(
-      ranges.map((r) =>
-        insights(args.instagramAccountId, {
+      windows.map((window) =>
+        fetchInsights(instagramAccountId, {
           metric: "follower_count",
           period: "day",
-          since: String(r.since),
-          until: String(r.until),
-        }),
-      ),
+          since: String(window.since),
+          until: String(window.until),
+        })
+      )
     ),
   ]);
 
-  const followerChange = followers.reduce(
-    (sum, metrics) => sum + (metrics[0]?.values || []).reduce((s, v) => s + (v.value || 0), 0),
-    0,
-  );
-  const total = (name: string) =>
-    totals.reduce((sum, metrics) => sum + (metrics.find((m) => m.name === name)?.total_value?.value ?? 0), 0);
+  const followerChange = followerRowsPerWindow.reduce((acc, followerRows) => {
+    const followerSeries = (followerRows[0]?.values as { value?: number }[] | undefined) || [];
+    return acc + followerSeries.reduce((sum, entry) => sum + (entry.value || 0), 0);
+  }, 0);
+
+  const sumAcrossWindows = (metric: string) =>
+    aggregateRowsPerWindow.reduce((acc, rows) => acc + totalValueFor(rows, metric), 0);
 
   return {
-    views: total("views"),
+    views: sumAcrossWindows("views"),
     followerChange,
-    interactions: total("total_interactions"),
-    reach: total("reach"),
-    profileViews: total("profile_views"),
+    interactions: sumAcrossWindows("total_interactions"),
+    reach: sumAcrossWindows("reach"),
+    profileViews: sumAcrossWindows("profile_views"),
   };
 }
 
-export type InstagramMediaItem = {
+interface FetchRecentMediaParams {
+  instagramAccountId: string;
+}
+
+export interface MediaPerformance {
   id: string;
   caption: string;
   thumbnailUrl?: string;
@@ -99,48 +116,50 @@ export type InstagramMediaItem = {
   reach: number;
   views: number;
   follows: number;
-};
+}
 
-type RawMedia = {
-  id?: string;
-  caption?: string;
-  thumbnail_url?: string;
-  media_url?: string;
-  permalink?: string;
-  timestamp?: string;
-};
+function singleValueFor(rows: Record<string, unknown>[], metric: string): number {
+  const row = rows.find((item) => item.name === metric);
+  const values = row?.values as { value?: number }[] | undefined;
+  return values?.[0]?.value ?? 0;
+}
 
-const metricValue = (metrics: InsightMetric[], name: string) => metrics.find((m) => m.name === name)?.values?.[0]?.value ?? 0;
-
-export async function fetchInstagramMedia(args: { instagramAccountId: string }): Promise<InstagramMediaItem[]> {
-  const { ok, data } = await metaGet<{ data?: RawMedia[] }>(`${args.instagramAccountId}/media`, {
+export async function fetchRecentMedia({ instagramAccountId }: FetchRecentMediaParams): Promise<MediaPerformance[]> {
+  const { ok, data } = await callGraphApi(`${instagramAccountId}/media`, {
     fields: "id,caption,thumbnail_url,media_url,permalink,timestamp",
     limit: "10",
   });
-  if (!ok) throw new InstagramFetchError(data.error || "Erro ao buscar conteúdos do Instagram");
+  if (!ok) {
+    throw new InstagramFetchError((data.error as string) || "Erro ao buscar conteúdos do Instagram");
+  }
+  const mediaList = (data.data as Record<string, unknown>[]) || [];
 
   return Promise.all(
-    (data.data || []).map(async (media) => {
+    mediaList.map(async (media) => {
       const id = String(media.id ?? "");
-      let metrics: InsightMetric[] = [];
-      // "follows" não existe para todo formato (ex.: Reels): cai para o conjunto menor
-      for (const metric of ["reach,views,follows", "reach"]) {
-        const r = await metaGet<{ data?: InsightMetric[] }>(`${id}/insights`, { metric });
-        if (r.ok) {
-          metrics = r.data.data || [];
-          break;
-        }
+
+      // Not every media type/API version supports "views" and "follows" (e.g. static
+      // images vs reels), so we try the full set first and fall back to just "reach"
+      // (near-universally supported) rather than losing the whole row on one bad metric.
+      let insightRows: Record<string, unknown>[] = [];
+      const primary = await callGraphApi(`${id}/insights`, { metric: "reach,views,follows" });
+      if (primary.ok) {
+        insightRows = (primary.data.data as Record<string, unknown>[]) || [];
+      } else {
+        const fallback = await callGraphApi(`${id}/insights`, { metric: "reach" });
+        if (fallback.ok) insightRows = (fallback.data.data as Record<string, unknown>[]) || [];
       }
+
       return {
         id,
         caption: String(media.caption ?? ""),
-        thumbnailUrl: media.thumbnail_url || media.media_url || undefined,
+        thumbnailUrl: (media.thumbnail_url as string) || (media.media_url as string) || undefined,
         permalink: String(media.permalink ?? "#"),
         timestamp: String(media.timestamp ?? ""),
-        reach: metricValue(metrics, "reach"),
-        views: metricValue(metrics, "views"),
-        follows: metricValue(metrics, "follows"),
+        reach: singleValueFor(insightRows, "reach"),
+        views: singleValueFor(insightRows, "views"),
+        follows: singleValueFor(insightRows, "follows"),
       };
-    }),
+    })
   );
 }

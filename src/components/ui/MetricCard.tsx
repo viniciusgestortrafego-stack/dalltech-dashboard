@@ -1,13 +1,13 @@
-import type { ReactNode } from "react";
+import { ReactNode } from "react";
 
-type MetricCardProps = {
+interface MetricCardProps {
   title: string;
-  value: string;
+  value: string | number;
   subtitle?: string;
   icon?: ReactNode;
   trend?: string;
   trendUp?: boolean;
-};
+}
 
 export function MetricCard({ title, value, subtitle, icon, trend, trendUp }: MetricCardProps) {
   return (
@@ -20,11 +20,7 @@ export function MetricCard({ title, value, subtitle, icon, trend, trendUp }: Met
       <div className="flex items-center gap-2">
         {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
         {trend && (
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              trendUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-            }`}
-          >
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendUp ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
             {trend}
           </span>
         )}

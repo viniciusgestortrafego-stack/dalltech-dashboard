@@ -4,10 +4,7 @@ import { SESSION_COOKIE_NAME, checkLogin, issueSessionToken } from "@/lib/sessio
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const { user, password } = (await request.json().catch(() => ({}))) as {
-    user?: string;
-    password?: string;
-  };
+  const { user, password } = (await request.json()) as { user?: string; password?: string };
 
   if (!user || !password || !checkLogin(user, password)) {
     return NextResponse.json({ error: "Usuário ou senha inválidos" }, { status: 401 });
@@ -21,10 +18,10 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 dias
+    maxAge: 60 * 60 * 24 * 30, // 30 days
   });
   return response;
 }

@@ -1,13 +1,12 @@
 import Link from "next/link";
 
-type DataStatusProps = {
+interface DataStatusProps {
   configured: boolean;
   loading: boolean;
   error: string | null;
   configureMessage: string;
-};
+}
 
-// Devolve o aviso adequado (não configurado / carregando / erro) ou null quando os dados podem ser exibidos
 export function DataStatus({ configured, loading, error, configureMessage }: DataStatusProps) {
   if (!configured) {
     return (
@@ -20,18 +19,10 @@ export function DataStatus({ configured, loading, error, configureMessage }: Dat
     );
   }
   if (loading) {
-    return (
-      <div className="border border-card-border rounded-xl bg-card p-6 text-center text-gray-400">
-        Carregando dados...
-      </div>
-    );
+    return <div className="border border-card-border rounded-xl bg-card p-6 text-center text-gray-400">Carregando dados...</div>;
   }
   if (error) {
-    return (
-      <div className="border border-red-500/30 rounded-xl bg-red-500/5 p-6 text-center text-red-400">
-        {error}
-      </div>
-    );
+    return <div className="border border-red-500/30 rounded-xl bg-red-500/5 p-6 text-center text-red-400">{error}</div>;
   }
   return null;
 }

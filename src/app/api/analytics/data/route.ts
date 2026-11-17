@@ -1,14 +1,9 @@
+import { getStoredCredentials } from "@/lib/credentialsStore";
 import { NextResponse } from "next/server";
-import {
-  formatGa4Date,
-  isGa4Configured,
-  listConversionEventNames,
-  rowsToObjects,
-  runReport,
-} from "@/lib/ga4Api";
+import { formatGa4Date, listConversionEventNames, rowsToObjects, runReport } from "@/lib/ga4Api";
 
-// Pública — mesma política das demais rotas de dados do dashboard.
-// Puxa ao vivo da Google Analytics Data API (GA4) — veja src/lib/ga4Api.ts.
+// Public — same policy as the rest of the dashboard's data routes.
+// Pulls live from the Google Analytics Data API (GA4) — see src/lib/ga4Api.ts.
 
 export const dynamic = "force-dynamic";
 
@@ -22,26 +17,11 @@ function dateWindow(): { since: string; until: string } {
   return { since: toISO(since), until: toISO(until) };
 }
 
-function str(value: string | number | undefined): string {
-  return typeof value === "string" ? value : value === undefined ? "" : String(value);
-}
-
-function num(value: string | number | undefined): number {
-  return typeof value === "number" ? value : parseFloat(value ?? "0") || 0;
-}
-
 export async function GET() {
-  const propertyId = process.env.GOOGLE_ANALYTICS_PROPERTY_ID;
-  if (!propertyId || !isGa4Configured()) {
-    return NextResponse.json({
-      configured: false,
-      daily: [],
-      channels: [],
-      conversionBreakdown: [],
-      conversionEventNames: [],
-      products: [],
-      utms: [],
-    });
+  // Propriedade digitada em Configurações; sem ela, a variável do projeto.
+  const propertyId = (await getStoredCredentials()).ga4PropertyId.trim() || process.env.GOOGLE_ANALYTICS_PROPERTY_ID;
+  if (!propertyId) {
+    return NextResponse.json({ daily: [], channels: [], conversionBreakdown: [], conversionEventNames: [], products: [], utms: [] });
   }
 
   try {
@@ -63,7 +43,8 @@ export async function GET() {
         until,
       }),
       listConversionEventNames(propertyId),
-      // Itens de e-commerce (visualizados, adicionados ao carrinho, comprados, receita)
+      // Ecommerce item report — which products people actually looked at, added to
+      // cart, and bought (e-commerce only; not meaningful for a lead-gen account).
       runReport({
         propertyId,
         dimensions: ["date", "itemName"],
@@ -71,23 +52,17 @@ export async function GET() {
         since,
         until,
       }),
+      // Raw UTM parameters (not the bucketed channel group above) — source, medium,
+      // campaign, term, content — so traffic can be traced back to the exact ad/post.
       runReport({
         propertyId,
-        dimensions: [
-          "date",
-          "sessionSource",
-          "sessionMedium",
-          "sessionCampaignName",
-          "sessionManualTerm",
-          "sessionManualAdContent",
-        ],
-        metrics: ["sessions", "conversions", "totalRevenue"],
+        dimensions: ["date", "sessionSource", "sessionMedium", "sessionCampaignName", "sessionManualTerm", "sessionManualAdContent"],
+        metrics: ["sessions", "conversions", "purchaseRevenue"],
         since,
         until,
       }),
     ]);
 
-    // Contagem diária de cada evento de conversão (só os configurados como evento-chave)
     const conversionResult =
       conversionEventNames.length > 0
         ? await runReport({
@@ -97,66 +72,59 @@ export async function GET() {
             since,
             until,
             dimensionFilter: {
-              filter: { fieldName: "eventName", inListFilter: { values: conversionEventNames } },
+              filter: {
+                fieldName: "eventName",
+                inListFilter: { values: conversionEventNames },
+              },
             },
           })
-        : null;
+        : { dimensionHeaders: [], metricHeaders: [] };
 
     const daily = rowsToObjects(dailyResult).map((r) => ({
-      date: formatGa4Date(str(r.date)),
-      sessions: num(r.sessions),
-      activeUsers: num(r.activeUsers),
-      engagementRate: num(r.engagementRate),
+      date: formatGa4Date(r.date),
+      sessions: Number(r.sessions || 0),
+      activeUsers: Number(r.activeUsers || 0),
+      engagementRate: Number(r.engagementRate || 0),
     }));
 
     const channels = rowsToObjects(channelResult).map((r) => ({
-      date: formatGa4Date(str(r.date)),
-      channel: str(r.sessionDefaultChannelGroup),
-      sessions: num(r.sessions),
-      activeUsers: num(r.activeUsers),
-      conversions: num(r.conversions),
+      date: formatGa4Date(r.date),
+      channel: r.sessionDefaultChannelGroup || "Outro",
+      sessions: Number(r.sessions || 0),
+      activeUsers: Number(r.activeUsers || 0),
+      conversions: Number(r.conversions || 0),
     }));
 
-    const conversionBreakdown = conversionResult
-      ? rowsToObjects(conversionResult).map((r) => ({
-          date: formatGa4Date(str(r.date)),
-          eventName: str(r.eventName),
-          count: num(r.eventCount),
-        }))
-      : [];
+    const conversionBreakdown = rowsToObjects(conversionResult).map((r) => ({
+      date: formatGa4Date(r.date),
+      eventName: r.eventName,
+      count: Number(r.eventCount || 0),
+    }));
 
     const products = rowsToObjects(productResult).map((r) => ({
-      date: formatGa4Date(str(r.date)),
-      itemName: str(r.itemName),
-      itemsViewed: num(r.itemsViewed),
-      itemsAddedToCart: num(r.itemsAddedToCart),
-      itemsPurchased: num(r.itemsPurchased),
-      itemRevenue: num(r.itemRevenue),
+      date: formatGa4Date(r.date),
+      itemName: r.itemName || "(sem nome)",
+      itemsViewed: Number(r.itemsViewed || 0),
+      itemsAddedToCart: Number(r.itemsAddedToCart || 0),
+      itemsPurchased: Number(r.itemsPurchased || 0),
+      itemRevenue: Number(r.itemRevenue || 0),
     }));
 
     const utms = rowsToObjects(utmResult).map((r) => ({
-      date: formatGa4Date(str(r.date)),
-      source: str(r.sessionSource),
-      medium: str(r.sessionMedium),
-      campaign: str(r.sessionCampaignName),
-      term: str(r.sessionManualTerm),
-      content: str(r.sessionManualAdContent),
-      sessions: num(r.sessions),
-      conversions: num(r.conversions),
-      revenue: num(r.totalRevenue),
+      date: formatGa4Date(r.date),
+      source: r.sessionSource || "(direct)",
+      medium: r.sessionMedium || "(none)",
+      campaign: r.sessionCampaignName || "(not set)",
+      term: r.sessionManualTerm || "(not set)",
+      content: r.sessionManualAdContent || "(not set)",
+      sessions: Number(r.sessions || 0),
+      conversions: Number(r.conversions || 0),
+      revenue: Number(r.purchaseRevenue || 0),
     }));
 
-    return NextResponse.json({
-      configured: true,
-      daily,
-      channels,
-      conversionBreakdown,
-      conversionEventNames,
-      products,
-      utms,
-    });
+    return NextResponse.json({ daily, channels, conversionBreakdown, conversionEventNames, products, utms });
   } catch (error) {
-    console.error("GA4 data error:", error instanceof Error ? error.message : "desconhecido");
+    console.error("GA4 API error:", error);
     return NextResponse.json({ error: "Erro ao buscar dados do Analytics" }, { status: 500 });
   }
 }

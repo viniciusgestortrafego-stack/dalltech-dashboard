@@ -41,7 +41,6 @@ function AnalyticsContent() {
   const [conversionEventNames, setConversionEventNames] = useState<string[]>([]);
   const [products, setProducts] = useState<AnalyticsProductRow[]>([]);
   const [utms, setUtms] = useState<AnalyticsUtmRow[]>([]);
-  const [configured, setConfigured] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -50,7 +49,6 @@ function AnalyticsContent() {
     setError(null);
     fetchAnalyticsData()
       .then((data) => {
-        setConfigured(data.configured);
         setDaily(data.daily);
         setChannels(data.channels);
         setConversionBreakdown(data.conversionBreakdown);
@@ -62,18 +60,22 @@ function AnalyticsContent() {
       .finally(() => setLoading(false));
   }, []);
 
-  const dailyInRange = filterDailyByRange(daily, from, to);
-  const totals = aggregateDaily(dailyInRange);
+  const periodDaily = filterDailyByRange(daily, from, to);
+  const totals = aggregateDaily(periodDaily);
   const channelRows = aggregateByChannel(filterChannelsByRange(channels, from, to));
-  const conversionTotals = aggregateConversionBreakdown(filterConversionsByRange(conversionBreakdown, from, to));
-  // só os eventos configurados como conversão, mesmo os que ainda não ocorreram no período
-  const conversionItems = conversionEventNames.map(
-    (eventName) => conversionTotals.find((item) => item.eventName === eventName) || { eventName, count: 0 },
+  const conversionRowsWithActivity = aggregateConversionBreakdown(filterConversionsByRange(conversionBreakdown, from, to));
+  // Show every configured GA4 conversion event, not just the ones with activity in the
+  // selected period — a goal at zero is still a goal worth seeing.
+  const conversionRows = conversionEventNames.map(
+    (eventName) => conversionRowsWithActivity.find((item) => item.eventName === eventName) || { eventName, count: 0 }
   );
-  const totalConversions = conversionItems.reduce((total, item) => total + item.count, 0);
+  const totalConversions = conversionRows.reduce((acc, item) => acc + item.count, 0);
   const productRows = aggregateByProduct(filterProductsByRange(products, from, to));
   const utmRows = aggregateByUtm(filterUtmsByRange(utms, from, to));
-  const timeline = aggregateSessionsByDay(dailyInRange, formatShortDate);
+  const timelineData = aggregateSessionsByDay(periodDaily).map((point) => {
+    const [year, month, day] = point.date.split("-").map(Number);
+    return { date: formatShortDate(new Date(year, (month || 1) - 1, day || 1)), sessoes: point.sessions };
+  });
 
   return (
     <div className="space-y-6">
@@ -86,13 +88,6 @@ function AnalyticsContent() {
         <div className="h-48 flex items-center justify-center text-gray-400">Carregando...</div>
       ) : error ? (
         <div className="border border-red-500/30 rounded-xl bg-red-500/5 p-6 text-center text-red-400">{error}</div>
-      ) : !configured ? (
-        <div className="border border-card-border rounded-xl bg-card p-6 text-center text-gray-400 space-y-2">
-          <p>
-            Google Analytics não configurado. Defina GOOGLE_ANALYTICS_PROPERTY_ID, GOOGLE_ANALYTICS_REFRESH_TOKEN,
-            GOOGLE_ADS_CLIENT_ID e GOOGLE_ADS_CLIENT_SECRET nas variáveis de ambiente do servidor.
-          </p>
-        </div>
       ) : daily.length === 0 ? (
         <div className="border border-card-border rounded-xl bg-card p-6 text-center text-gray-400 space-y-2">
           <p>Nenhum dado do Google Analytics disponível.</p>
@@ -100,37 +95,17 @@ function AnalyticsContent() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard
-              title="Sessões"
-              value={formatNumber(totals.sessions)}
-              subtitle="visitas no período"
-              icon={<Activity size={18} />}
-            />
-            <MetricCard
-              title="Usuários Ativos"
-              value={formatNumber(totals.activeUsers)}
-              subtitle="pessoas únicas no período"
-              icon={<Users size={18} />}
-            />
-            <MetricCard
-              title="Taxa de Engajamento"
-              value={formatPercent(totals.engagementRate * 100)}
-              subtitle="sessões engajadas / sessões"
-              icon={<Percent size={18} />}
-            />
-            <MetricCard
-              title="Conversões"
-              value={formatNumber(totalConversions)}
-              subtitle="eventos de conversão no período"
-              icon={<Target size={18} />}
-            />
+            <MetricCard title="Sessões" value={formatNumber(totals.sessions)} subtitle="visitas no período" icon={<Activity size={18} />} />
+            <MetricCard title="Usuários Ativos" value={formatNumber(totals.activeUsers)} subtitle="pessoas únicas no período" icon={<Users size={18} />} />
+            <MetricCard title="Taxa de Engajamento" value={formatPercent(totals.engagementRate * 100)} subtitle="sessões engajadas / sessões" icon={<Percent size={18} />} />
+            <MetricCard title="Conversões" value={formatNumber(totalConversions)} subtitle="eventos de conversão no período" icon={<Target size={18} />} />
           </div>
 
           <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
             <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-2">Evolução Temporal</h2>
             <p className="text-sm text-gray-500 mb-4">Sessões por dia</p>
-            {timeline.length > 0 ? (
-              <TimelineChart data={timeline} dataKey="sessoes" />
+            {timelineData.length > 0 ? (
+              <TimelineChart data={timelineData} dataKey="sessoes" />
             ) : (
               <div className="h-48 flex items-center justify-center text-gray-500">Sem dados no período selecionado</div>
             )}
@@ -143,7 +118,7 @@ function AnalyticsContent() {
             </div>
             <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
               <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Eventos de Conversão</h2>
-              <EventBreakdownList items={conversionItems} />
+              <EventBreakdownList items={conversionRows} />
             </div>
           </div>
 

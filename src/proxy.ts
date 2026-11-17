@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isValidSession } from "@/lib/session";
 
-// Só /api/credentials é protegido aqui: a página /settings sempre carrega
-// (ela mostra o formulário de login e chama /api/auth/login).
+// Only /api/credentials is gated here — the /settings page itself always
+// loads (it shows a login form client-side and calls /api/auth/login),
+// which is friendlier than the browser's native Basic Auth popup.
 
 export function proxy(request: NextRequest) {
   if (isValidSession(request)) {

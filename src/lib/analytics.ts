@@ -1,6 +1,3 @@
-// Tipos, busca e agregações do Analytics (GA4). Seguro para importar em componentes "use client":
-// a chamada ao Google acontece no servidor, em /api/analytics/data.
-
 export interface AnalyticsDailyRow {
   date: string;
   sessions: number;
@@ -43,41 +40,9 @@ export interface AnalyticsUtmRow {
   revenue: number;
 }
 
-export interface AnalyticsChannelSummary {
-  channel: string;
-  sessions: number;
-  activeUsers: number;
-  conversions: number;
-}
-
-export interface AnalyticsConversionSummary {
-  eventName: string;
-  count: number;
-}
-
-export interface AnalyticsProductSummary {
-  itemName: string;
-  itemsViewed: number;
-  itemsAddedToCart: number;
-  itemsPurchased: number;
-  itemRevenue: number;
-}
-
-export interface AnalyticsUtmSummary {
-  source: string;
-  medium: string;
-  campaign: string;
-  term: string;
-  content: string;
-  sessions: number;
-  conversions: number;
-  revenue: number;
-}
-
 export class AnalyticsFetchError extends Error {}
 
 export interface AnalyticsData {
-  configured: boolean;
   daily: AnalyticsDailyRow[];
   channels: AnalyticsChannelRow[];
   conversionBreakdown: AnalyticsConversionRow[];
@@ -91,118 +56,143 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData> {
   if (!response.ok) {
     throw new AnalyticsFetchError("Erro ao buscar dados do Analytics");
   }
-  const data = (await response.json()) as Partial<AnalyticsData>;
+  const data = await response.json();
   return {
-    configured: data.configured !== false,
-    daily: data.daily || [],
-    channels: data.channels || [],
-    conversionBreakdown: data.conversionBreakdown || [],
-    conversionEventNames: data.conversionEventNames || [],
-    products: data.products || [],
-    utms: data.utms || [],
+    daily: (data.daily as AnalyticsDailyRow[]) || [],
+    channels: (data.channels as AnalyticsChannelRow[]) || [],
+    conversionBreakdown: (data.conversionBreakdown as AnalyticsConversionRow[]) || [],
+    conversionEventNames: (data.conversionEventNames as string[]) || [],
+    products: (data.products as AnalyticsProductRow[]) || [],
+    utms: (data.utms as AnalyticsUtmRow[]) || [],
   };
 }
 
-function filterByRange<T extends { date: string }>(rows: T[], from: string, to: string): T[] {
+function filterByDateRange<T extends { date: string }>(rows: T[], from: string, to: string): T[] {
   return rows.filter((row) => row.date >= from && row.date <= to);
 }
 
-export const filterDailyByRange = filterByRange<AnalyticsDailyRow>;
-export const filterChannelsByRange = filterByRange<AnalyticsChannelRow>;
-export const filterConversionsByRange = filterByRange<AnalyticsConversionRow>;
-export const filterProductsByRange = filterByRange<AnalyticsProductRow>;
-export const filterUtmsByRange = filterByRange<AnalyticsUtmRow>;
+export function filterDailyByRange(rows: AnalyticsDailyRow[], from: string, to: string): AnalyticsDailyRow[] {
+  return filterByDateRange(rows, from, to);
+}
 
-// Taxa de engajamento ponderada pelas sessões de cada dia
-export function aggregateDaily(rows: AnalyticsDailyRow[]): {
+export function filterChannelsByRange(rows: AnalyticsChannelRow[], from: string, to: string): AnalyticsChannelRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export function filterConversionsByRange(rows: AnalyticsConversionRow[], from: string, to: string): AnalyticsConversionRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export function filterProductsByRange(rows: AnalyticsProductRow[], from: string, to: string): AnalyticsProductRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export function filterUtmsByRange(rows: AnalyticsUtmRow[], from: string, to: string): AnalyticsUtmRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export interface AnalyticsTotals {
   sessions: number;
   activeUsers: number;
   engagementRate: number;
-} {
-  const sessions = rows.reduce((total, row) => total + row.sessions, 0);
-  const activeUsers = rows.reduce((total, row) => total + row.activeUsers, 0);
-  const weighted = rows.reduce((total, row) => total + row.engagementRate * row.sessions, 0);
-  return { sessions, activeUsers, engagementRate: sessions > 0 ? weighted / sessions : 0 };
+}
+
+export function aggregateDaily(rows: AnalyticsDailyRow[]): AnalyticsTotals {
+  const sessions = rows.reduce((acc, r) => acc + r.sessions, 0);
+  const activeUsers = rows.reduce((acc, r) => acc + r.activeUsers, 0);
+  // engagementRate is already a rate per row (not additive) — weight by sessions for a
+  // period average instead of a naive mean across days with very different traffic.
+  const weightedEngagement = rows.reduce((acc, r) => acc + r.engagementRate * r.sessions, 0);
+  return {
+    sessions,
+    activeUsers,
+    engagementRate: sessions > 0 ? weightedEngagement / sessions : 0,
+  };
+}
+
+export interface AnalyticsChannelSummary {
+  channel: string;
+  sessions: number;
+  activeUsers: number;
+  conversions: number;
 }
 
 export function aggregateByChannel(rows: AnalyticsChannelRow[]): AnalyticsChannelSummary[] {
-  const map = new Map<string, { sessions: number; activeUsers: number; conversions: number }>();
+  const byChannel = new Map<string, { sessions: number; activeUsers: number; conversions: number }>();
   for (const row of rows) {
-    const current = map.get(row.channel) || { sessions: 0, activeUsers: 0, conversions: 0 };
-    current.sessions += row.sessions;
-    current.activeUsers += row.activeUsers;
-    current.conversions += row.conversions;
-    map.set(row.channel, current);
+    const entry = byChannel.get(row.channel) || { sessions: 0, activeUsers: 0, conversions: 0 };
+    entry.sessions += row.sessions;
+    entry.activeUsers += row.activeUsers;
+    entry.conversions += row.conversions;
+    byChannel.set(row.channel, entry);
   }
-  return Array.from(map.entries())
-    .map(([channel, totals]) => ({ channel, ...totals }))
+  return Array.from(byChannel.entries())
+    .map(([channel, v]) => ({ channel, ...v }))
     .sort((a, b) => b.sessions - a.sessions);
 }
 
+export interface AnalyticsConversionSummary {
+  eventName: string;
+  count: number;
+}
+
 export function aggregateConversionBreakdown(rows: AnalyticsConversionRow[]): AnalyticsConversionSummary[] {
-  const map = new Map<string, number>();
+  const byEvent = new Map<string, number>();
   for (const row of rows) {
-    map.set(row.eventName, (map.get(row.eventName) || 0) + row.count);
+    byEvent.set(row.eventName, (byEvent.get(row.eventName) || 0) + row.count);
   }
-  return Array.from(map.entries())
+  return Array.from(byEvent.entries())
     .map(([eventName, count]) => ({ eventName, count }))
     .sort((a, b) => b.count - a.count);
 }
 
+export function aggregateSessionsByDay(rows: AnalyticsDailyRow[]): { date: string; sessions: number }[] {
+  return [...rows].sort((a, b) => a.date.localeCompare(b.date)).map((r) => ({ date: r.date, sessions: r.sessions }));
+}
+
+export interface AnalyticsProductSummary {
+  itemName: string;
+  itemsViewed: number;
+  itemsAddedToCart: number;
+  itemsPurchased: number;
+  itemRevenue: number;
+}
+
 export function aggregateByProduct(rows: AnalyticsProductRow[]): AnalyticsProductSummary[] {
-  const map = new Map<
-    string,
-    { itemsViewed: number; itemsAddedToCart: number; itemsPurchased: number; itemRevenue: number }
-  >();
+  const byProduct = new Map<string, { itemsViewed: number; itemsAddedToCart: number; itemsPurchased: number; itemRevenue: number }>();
   for (const row of rows) {
-    const current = map.get(row.itemName) || {
-      itemsViewed: 0,
-      itemsAddedToCart: 0,
-      itemsPurchased: 0,
-      itemRevenue: 0,
-    };
-    current.itemsViewed += row.itemsViewed;
-    current.itemsAddedToCart += row.itemsAddedToCart;
-    current.itemsPurchased += row.itemsPurchased;
-    current.itemRevenue += row.itemRevenue;
-    map.set(row.itemName, current);
+    const entry = byProduct.get(row.itemName) || { itemsViewed: 0, itemsAddedToCart: 0, itemsPurchased: 0, itemRevenue: 0 };
+    entry.itemsViewed += row.itemsViewed;
+    entry.itemsAddedToCart += row.itemsAddedToCart;
+    entry.itemsPurchased += row.itemsPurchased;
+    entry.itemRevenue += row.itemRevenue;
+    byProduct.set(row.itemName, entry);
   }
-  return Array.from(map.entries())
-    .map(([itemName, totals]) => ({ itemName, ...totals }))
+  return Array.from(byProduct.entries())
+    .map(([itemName, v]) => ({ itemName, ...v }))
     .sort((a, b) => b.itemsViewed - a.itemsViewed);
 }
 
-export function aggregateByUtm(rows: AnalyticsUtmRow[]): AnalyticsUtmSummary[] {
-  const map = new Map<string, AnalyticsUtmSummary>();
-  for (const row of rows) {
-    const key = `${row.source}__${row.medium}__${row.campaign}__${row.term}__${row.content}`;
-    const current = map.get(key) || {
-      source: row.source,
-      medium: row.medium,
-      campaign: row.campaign,
-      term: row.term,
-      content: row.content,
-      sessions: 0,
-      conversions: 0,
-      revenue: 0,
-    };
-    current.sessions += row.sessions;
-    current.conversions += row.conversions;
-    current.revenue += row.revenue;
-    map.set(key, current);
-  }
-  return Array.from(map.values()).sort((a, b) => b.sessions - a.sessions);
+export interface AnalyticsUtmSummary {
+  source: string;
+  medium: string;
+  campaign: string;
+  term: string;
+  content: string;
+  sessions: number;
+  conversions: number;
+  revenue: number;
 }
 
-// Sessões por dia, já no formato do gráfico (data curta dd/mm)
-export function aggregateSessionsByDay(
-  rows: AnalyticsDailyRow[],
-  formatDate: (date: Date) => string,
-): { date: string; sessoes: number }[] {
-  return [...rows]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((row) => {
-      const [year, month, day] = row.date.split("-").map(Number);
-      return { date: formatDate(new Date(year, (month || 1) - 1, day || 1)), sessoes: row.sessions };
-    });
+export function aggregateByUtm(rows: AnalyticsUtmRow[]): AnalyticsUtmSummary[] {
+  const byUtm = new Map<string, AnalyticsUtmSummary>();
+  for (const row of rows) {
+    const key = `${row.source}__${row.medium}__${row.campaign}__${row.term}__${row.content}`;
+    const entry = byUtm.get(key) || { source: row.source, medium: row.medium, campaign: row.campaign, term: row.term, content: row.content, sessions: 0, conversions: 0, revenue: 0 };
+    entry.sessions += row.sessions;
+    entry.conversions += row.conversions;
+    entry.revenue += row.revenue;
+    byUtm.set(key, entry);
+  }
+  return Array.from(byUtm.values()).sort((a, b) => b.sessions - a.sessions);
 }

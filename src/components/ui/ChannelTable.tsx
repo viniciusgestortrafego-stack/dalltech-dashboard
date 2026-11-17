@@ -1,5 +1,9 @@
-import type { AnalyticsChannelSummary } from "@/lib/analytics";
+import { AnalyticsChannelSummary } from "@/lib/analytics";
 import { formatNumber, formatPercent } from "@/lib/format";
+
+interface ChannelTableProps {
+  rows: AnalyticsChannelSummary[];
+}
 
 const CHANNEL_LABELS: Record<string, string> = {
   "Paid Search": "Busca Paga",
@@ -14,12 +18,12 @@ const CHANNEL_LABELS: Record<string, string> = {
   Unassigned: "Não atribuído",
 };
 
-export function ChannelTable({ rows }: { rows: AnalyticsChannelSummary[] }) {
+export function ChannelTable({ rows }: ChannelTableProps) {
   if (rows.length === 0) {
     return <div className="h-48 flex items-center justify-center text-gray-500">Sem dados no período selecionado</div>;
   }
 
-  const totalSessions = rows.reduce((total, row) => total + row.sessions, 0) || 1;
+  const totalSessions = rows.reduce((acc, r) => acc + r.sessions, 0) || 1;
 
   return (
     <div className="overflow-x-auto">
@@ -35,15 +39,10 @@ export function ChannelTable({ rows }: { rows: AnalyticsChannelSummary[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={row.channel}
-              className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
+            <tr key={row.channel} className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="py-3 pr-4 font-medium">{CHANNEL_LABELS[row.channel] ?? row.channel}</td>
               <td className="py-3 pr-4 text-right">{formatNumber(row.sessions)}</td>
-              <td className="py-3 pr-4 text-right text-gray-400">
-                {formatPercent((row.sessions / totalSessions) * 100)}
-              </td>
+              <td className="py-3 pr-4 text-right text-gray-400">{formatPercent((row.sessions / totalSessions) * 100)}</td>
               <td className="py-3 pr-4 text-right">{formatNumber(row.activeUsers)}</td>
               <td className="py-3 text-right text-primary font-bold">{formatNumber(row.conversions)}</td>
             </tr>

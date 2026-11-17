@@ -5,11 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  {
-    // As páginas buscam dados num useEffect e marcam "carregando" antes de chamar a API (padrão do modelo).
-    rules: { "react-hooks/set-state-in-effect": "off" },
-  },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "docs/**"]),
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
 ]);
 
 export default eslintConfig;

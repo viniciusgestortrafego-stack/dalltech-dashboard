@@ -8,51 +8,9 @@ import { CampaignTable } from "@/components/ui/CampaignTable";
 import { useConfigStatus } from "@/lib/useConfigStatus";
 import { useDateRange } from "@/lib/dateRange";
 import { formatBRL, formatNumber, formatShortDate } from "@/lib/format";
-import {
-  BreakdownItem,
-  CampaignPerformanceRow,
-  MetaFetchError,
-  fetchCampaignPerformance,
-  fetchDailySalesRows,
-  fetchPurchaseBreakdown,
-  formatAgeGenderLabel,
-  formatDeviceLabel,
-} from "@/lib/meta";
+import { BreakdownItem, CampaignPerformanceRow, MetaFetchError, fetchCampaignPerformance, fetchDailySalesRows, fetchPurchaseBreakdown, formatAgeGenderLabel, formatDeviceLabel } from "@/lib/meta";
 import { SalesRow, aggregateSalesRows, filterRowsByRange } from "@/lib/sales";
 import { siteConfig } from "@/config/site";
-
-const EMPTY_PURCHASES = "Sem compras registradas no período";
-
-function BreakdownList({ items }: { items: BreakdownItem[] }) {
-  if (items.length === 0) {
-    return <div className="h-48 flex items-center justify-center text-gray-500">{EMPTY_PURCHASES}</div>;
-  }
-  return (
-    <div className="space-y-4">
-      {items.map((item, i) => (
-        <div
-          key={i}
-          className="flex justify-between items-center text-sm border-b border-card-border pb-2 last:border-0"
-        >
-          <span className="font-bold flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-            {item.name}
-          </span>
-          <span className="font-bold text-primary">{formatNumber(item.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</h3>
-      <p className="text-3xl font-bold">{value}</p>
-    </div>
-  );
-}
 
 function OverviewContent() {
   const { status: configStatus, loaded } = useConfigStatus();
@@ -73,54 +31,36 @@ function OverviewContent() {
     setError(null);
     Promise.all([
       fetchDailySalesRows({ adAccountId, since: from, until: to }),
-      fetchPurchaseBreakdown({
-        adAccountId,
-        breakdowns: ["publisher_platform", "platform_position"],
-        since: from,
-        until: to,
-      }),
-      fetchPurchaseBreakdown({
-        adAccountId,
-        breakdowns: ["device_platform"],
-        since: from,
-        until: to,
-        formatLabel: formatDeviceLabel,
-      }),
-      fetchPurchaseBreakdown({
-        adAccountId,
-        breakdowns: ["age", "gender"],
-        since: from,
-        until: to,
-        formatLabel: formatAgeGenderLabel,
-      }),
+      fetchPurchaseBreakdown({ adAccountId, breakdowns: ["publisher_platform", "platform_position"], since: from, until: to }),
+      fetchPurchaseBreakdown({ adAccountId, breakdowns: ["device_platform"], since: from, until: to, formatLabel: formatDeviceLabel }),
+      fetchPurchaseBreakdown({ adAccountId, breakdowns: ["age", "gender"], since: from, until: to, formatLabel: formatAgeGenderLabel }),
       fetchCampaignPerformance({ adAccountId, since: from, until: to }),
     ])
-      .then(([salesRows, placements, devices, ageGender, campaigns]) => {
+      .then(([salesRows, placement, device, ageGender, campaigns]) => {
         setRows(salesRows);
-        setPlacementData(placements);
-        setDeviceData(devices);
+        setPlacementData(placement);
+        setDeviceData(device);
         setAgeGenderData(ageGender);
         setCampaignRows(campaigns);
       })
-      .catch((err: unknown) =>
-        setError(err instanceof MetaFetchError ? err.message : "Erro ao buscar dados do Meta Ads"),
-      )
+      .catch((err) => setError(err instanceof MetaFetchError ? err.message : "Erro ao buscar dados do Meta Ads"))
       .finally(() => setLoading(false));
-  }, [loaded, configStatus.hasMeta, configStatus.adAccountId, from, to]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, configStatus.hasMeta, configStatus.adAccountId, from, to]);
 
   const status = DataStatus({
     configured: configStatus.hasMeta,
     loading,
     error,
-    configureMessage: `Configure o token e a conta do Meta Ads em Configurações para ver os números da ${siteConfig.clientName}.`,
+    configureMessage: `Configure o token e a conta do Meta Ads em Configurações para ver os números de ${siteConfig.clientName}.`,
   });
 
-  const filtered = filterRowsByRange(rows, from, to);
-  const totals = aggregateSalesRows(filtered);
-  const timelineData = filtered
-    .filter((row): row is SalesRow & { dateObj: Date } => row.dateObj !== null)
-    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
-    .map((row) => ({ date: formatShortDate(row.dateObj), receita: row.receita }));
+  const periodRows = filterRowsByRange(rows, from, to);
+  const totals = aggregateSalesRows(periodRows);
+  const timelineData = periodRows
+    .filter((row) => row.dateObj)
+    .sort((a, b) => a.dateObj!.getTime() - b.dateObj!.getTime())
+    .map((row) => ({ date: formatShortDate(row.dateObj!), receita: row.receita }));
 
   return (
     <div className="space-y-6">
@@ -132,11 +72,26 @@ function OverviewContent() {
       {status ?? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <StatCard title="Vendas" value={formatNumber(totals.compras)} />
-            <StatCard title="Receita" value={formatBRL(totals.receita)} />
-            <StatCard title="Investido" value={formatBRL(totals.investimento)} />
-            <StatCard title="Custo por Venda" value={formatBRL(totals.custoPorCompra)} />
-            <StatCard title="ROAS" value={`${totals.roas.toFixed(2)}x`} />
+            <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Vendas</h3>
+              <p className="text-3xl font-bold">{formatNumber(totals.compras)}</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Receita</h3>
+              <p className="text-3xl font-bold">{formatBRL(totals.receita)}</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Investido</h3>
+              <p className="text-3xl font-bold">{formatBRL(totals.investimento)}</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Custo por Venda</h3>
+              <p className="text-3xl font-bold">{formatBRL(totals.custoPorCompra)}</p>
+            </div>
+            <div className="bg-card border border-card-border rounded-xl p-5 shadow-sm">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">ROAS</h3>
+              <p className="text-3xl font-bold">{totals.roas.toFixed(2)}x</p>
+            </div>
           </div>
 
           <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
@@ -145,43 +100,61 @@ function OverviewContent() {
             {timelineData.length > 0 ? (
               <TimelineChart data={timelineData} dataKey="receita" />
             ) : (
-              <div className="h-48 flex items-center justify-center text-gray-500">
-                Sem dados no período selecionado
-              </div>
+              <div className="h-48 flex items-center justify-center text-gray-500">Sem dados no período selecionado</div>
             )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-6 bg-card border border-card-border rounded-xl p-6 shadow-sm">
-              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">
-                Compras por Posicionamento
-              </h2>
+              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Compras por Posicionamento</h2>
               {placementData.length > 0 ? (
                 <HorizontalBarChart data={placementData} />
               ) : (
-                <div className="h-48 flex items-center justify-center text-gray-500">{EMPTY_PURCHASES}</div>
+                <div className="h-48 flex items-center justify-center text-gray-500">Sem compras registradas no período</div>
               )}
             </div>
 
             <div className="lg:col-span-3 bg-card border border-card-border rounded-xl p-6 shadow-sm">
-              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">
-                Compras por Dispositivo
-              </h2>
-              <BreakdownList items={deviceData} />
+              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Compras por Dispositivo</h2>
+              {deviceData.length > 0 ? (
+                <div className="space-y-4">
+                  {deviceData.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm border-b border-card-border pb-2 last:border-0">
+                      <span className="font-bold flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
+                        {item.name}
+                      </span>
+                      <span className="font-bold text-primary">{formatNumber(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-gray-500">Sem compras registradas no período</div>
+              )}
             </div>
 
             <div className="lg:col-span-3 bg-card border border-card-border rounded-xl p-6 shadow-sm">
-              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">
-                Compras por Idade e Gênero
-              </h2>
-              <BreakdownList items={ageGenderData} />
+              <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Compras por Idade e Gênero</h2>
+              {ageGenderData.length > 0 ? (
+                <div className="space-y-4">
+                  {ageGenderData.map((item, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm border-b border-card-border pb-2 last:border-0">
+                      <span className="font-bold flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
+                        {item.name}
+                      </span>
+                      <span className="font-bold text-primary">{formatNumber(item.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-48 flex items-center justify-center text-gray-500">Sem compras registradas no período</div>
+              )}
             </div>
           </div>
 
           <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">
-            <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">
-              Visão Geral de Campanhas
-            </h2>
+            <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-6">Visão Geral de Campanhas</h2>
             <CampaignTable rows={campaignRows} />
           </div>
         </>
@@ -190,7 +163,7 @@ function OverviewContent() {
   );
 }
 
-export default function OverviewPage() {
+export default function Home() {
   return (
     <Suspense fallback={<div className="text-gray-400">Carregando...</div>}>
       <OverviewContent />

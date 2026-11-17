@@ -30,7 +30,6 @@ export default function Topbar() {
         <div className="bg-card border border-card-border px-4 py-2 rounded-lg text-sm text-gray-300 flex items-center gap-2 shadow-sm">
           <input
             type="date"
-            aria-label="Data inicial"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             className="bg-transparent focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
@@ -38,7 +37,6 @@ export default function Topbar() {
           <span className="text-gray-500">-</span>
           <input
             type="date"
-            aria-label="Data final"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             className="bg-transparent focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"

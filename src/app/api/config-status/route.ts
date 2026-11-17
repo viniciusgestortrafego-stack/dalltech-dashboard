@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
-import { normalizeAdAccountId } from "@/lib/credentials";
 import { getStoredCredentials } from "@/lib/credentialsStore";
 
-// Público: só diz o que está configurado (IDs não são segredo). Nunca devolve tokens nem chaves.
+// Public route — every dashboard page calls this to know whether to show real
+// data or a "configure in Settings" message, and to get the non-secret
+// identifiers (account IDs, store URL) needed to build API requests.
+// The actual secrets (metaToken, wooConsumerKey, wooConsumerSecret) never
+// leave the server — see /api/credentials for those, which is login-gated.
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const c = await getStoredCredentials();
-  const adAccountId = normalizeAdAccountId(c.adAccountId);
+  const credentials = await getStoredCredentials();
   return NextResponse.json({
-    adAccountId,
-    instagramAccountId: c.instagramAccountId,
-    wooStoreUrl: c.wooStoreUrl,
-    hasMeta: Boolean(c.metaToken && adAccountId),
-    hasInstagram: Boolean(c.metaToken && c.instagramAccountId),
-    hasWoo: Boolean(c.wooStoreUrl && c.wooConsumerKey && c.wooConsumerSecret),
-    hasGoogleAds: Boolean(c.googleAdsWebhookSecret),
+    adAccountId: credentials.adAccountId,
+    instagramAccountId: credentials.instagramAccountId,
+    wooStoreUrl: credentials.wooStoreUrl,
+    googleAdsCustomerId: credentials.googleAdsCustomerId,
+    ga4PropertyId: credentials.ga4PropertyId,
+    hasMeta: Boolean(credentials.metaToken && credentials.adAccountId),
+    hasInstagram: Boolean(credentials.metaToken && credentials.instagramAccountId),
+    hasWoo: Boolean(credentials.wooStoreUrl && credentials.wooConsumerKey && credentials.wooConsumerSecret),
   });
 }

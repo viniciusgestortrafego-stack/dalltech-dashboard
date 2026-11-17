@@ -1,4 +1,4 @@
-import type { EntityPerformanceRow } from "@/lib/metaEntities";
+import { EntityPerformanceRow } from "@/lib/meta";
 import { formatBRL, formatNumber } from "@/lib/format";
 import { ExternalLink } from "lucide-react";
 
@@ -28,10 +28,7 @@ export function PerformanceTable({ rows, nameColumnLabel, showThumbnails }: Perf
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={row.id}
-              className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
+            <tr key={row.id} className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <td className="py-3 pr-4">
                 <a
                   href={row.permalinkUrl || row.thumbnailUrl || row.managerUrl}
@@ -39,17 +36,14 @@ export function PerformanceTable({ rows, nameColumnLabel, showThumbnails }: Perf
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 font-medium text-foreground hover:text-primary transition-colors"
                 >
-                  {showThumbnails &&
-                    (row.thumbnailUrl ? (
+                  {showThumbnails && (
+                    row.thumbnailUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={row.thumbnailUrl}
-                        alt={row.name}
-                        className="w-12 h-12 rounded-lg object-cover shrink-0 bg-black/10"
-                      />
+                      <img src={row.thumbnailUrl} alt={row.name} className="w-12 h-12 rounded-lg object-cover shrink-0 bg-black/10" />
                     ) : (
                       <div className="w-12 h-12 rounded-lg shrink-0 bg-black/10 dark:bg-white/10" />
-                    ))}
+                    )
+                  )}
                   <span className="truncate max-w-[220px]">{row.name}</span>
                   <ExternalLink size={14} className="text-gray-400 shrink-0" />
                 </a>

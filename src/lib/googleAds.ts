@@ -1,5 +1,4 @@
-// Funções do lado do cliente da página /google-ads: busca em /api/google-ads/data e agregação por período.
-export type GoogleAdsRow = {
+export interface GoogleAdsRow {
   date: string;
   campaignId: string;
   campaignName: string;
@@ -8,9 +7,9 @@ export type GoogleAdsRow = {
   clicks: number;
   conversions: number;
   conversionValue: number;
-};
+}
 
-export type GoogleAdsKeywordRow = {
+export interface GoogleAdsKeywordRow {
   date: string;
   keyword: string;
   matchType: string;
@@ -18,54 +17,69 @@ export type GoogleAdsKeywordRow = {
   impressions: number;
   clicks: number;
   conversions: number;
-};
+  conversionValue: number;
+}
 
-export type GoogleAdsConversionRow = {
+export interface GoogleAdsConversionRow {
   date: string;
   conversionActionName: string;
   conversions: number;
   conversionValue: number;
-};
+}
 
-export type GoogleAdsPayload = {
+export class GoogleAdsFetchError extends Error {}
+
+export interface GoogleAdsData {
   rows: GoogleAdsRow[];
   keywords: GoogleAdsKeywordRow[];
   conversionBreakdown: GoogleAdsConversionRow[];
   conversionActionNames: string[];
   conversionActionCategories: Record<string, string>;
-  updatedAt: string;
-};
+}
 
-export class GoogleAdsFetchError extends Error {}
-
-export async function fetchGoogleAdsData(): Promise<GoogleAdsPayload> {
-  const res = await fetch("/api/google-ads/data", { cache: "no-store" });
-  if (!res.ok) throw new GoogleAdsFetchError("Erro ao buscar dados do Google Ads");
-  const json = await res.json();
+export async function fetchGoogleAdsData(): Promise<GoogleAdsData> {
+  const response = await fetch("/api/google-ads/data");
+  if (!response.ok) {
+    throw new GoogleAdsFetchError("Erro ao buscar dados do Google Ads");
+  }
+  const data = await response.json();
   return {
-    rows: json.rows || [],
-    keywords: json.keywords || [],
-    conversionBreakdown: json.conversionBreakdown || [],
-    conversionActionNames: json.conversionActionNames || [],
-    conversionActionCategories: json.conversionActionCategories || {},
-    updatedAt: json.updatedAt || "",
+    rows: (data.rows as GoogleAdsRow[]) || [],
+    keywords: (data.keywords as GoogleAdsKeywordRow[]) || [],
+    conversionBreakdown: (data.conversionBreakdown as GoogleAdsConversionRow[]) || [],
+    conversionActionNames: (data.conversionActionNames as string[]) || [],
+    conversionActionCategories: (data.conversionActionCategories as Record<string, string>) || {},
   };
 }
 
-function inRange<T extends { date: string }>(items: T[], from: string, to: string): T[] {
-  return items.filter((item) => item.date >= from && item.date <= to);
+function filterByDateRange<T extends { date: string }>(rows: T[], from: string, to: string): T[] {
+  return rows.filter((row) => row.date >= from && row.date <= to);
 }
 
-export const filterGoogleAdsRowsByRange = inRange<GoogleAdsRow>;
-export const filterKeywordsByRange = inRange<GoogleAdsKeywordRow>;
-export const filterConversionsByRange = inRange<GoogleAdsConversionRow>;
+export function filterGoogleAdsRowsByRange(rows: GoogleAdsRow[], from: string, to: string): GoogleAdsRow[] {
+  return filterByDateRange(rows, from, to);
+}
 
-export function aggregateGoogleAdsRows(rows: GoogleAdsRow[]) {
-  const spend = rows.reduce((s, r) => s + r.spend, 0);
-  const impressions = rows.reduce((s, r) => s + r.impressions, 0);
-  const clicks = rows.reduce((s, r) => s + r.clicks, 0);
-  const conversions = rows.reduce((s, r) => s + r.conversions, 0);
-  const conversionValue = rows.reduce((s, r) => s + r.conversionValue, 0);
+export interface GoogleAdsTotals {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  cpc: number;
+  cpm: number;
+  ctr: number;
+  costPerConversion: number;
+  roas: number;
+}
+
+export function aggregateGoogleAdsRows(rows: GoogleAdsRow[]): GoogleAdsTotals {
+  const spend = rows.reduce((acc, row) => acc + row.spend, 0);
+  const impressions = rows.reduce((acc, row) => acc + row.impressions, 0);
+  const clicks = rows.reduce((acc, row) => acc + row.clicks, 0);
+  const conversions = rows.reduce((acc, row) => acc + row.conversions, 0);
+  const conversionValue = rows.reduce((acc, row) => acc + row.conversionValue, 0);
+
   return {
     spend,
     impressions,
@@ -80,28 +94,34 @@ export function aggregateGoogleAdsRows(rows: GoogleAdsRow[]) {
   };
 }
 
-export function aggregateGoogleAdsByCampaign(rows: GoogleAdsRow[]) {
-  const map = new Map<
-    string,
-    { name: string; spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }
-  >();
-  for (const r of rows) {
-    const cur = map.get(r.campaignId) || {
-      name: r.campaignName,
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
-      conversions: 0,
-      conversionValue: 0,
-    };
-    cur.spend += r.spend;
-    cur.impressions += r.impressions;
-    cur.clicks += r.clicks;
-    cur.conversions += r.conversions;
-    cur.conversionValue += r.conversionValue;
-    map.set(r.campaignId, cur);
+export interface GoogleAdsCampaignRow {
+  id: string;
+  name: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  cpc: number;
+  cpm: number;
+  conversions: number;
+  costPerConversion: number;
+  conversionValue: number;
+  roas: number;
+}
+
+export function aggregateGoogleAdsByCampaign(rows: GoogleAdsRow[]): GoogleAdsCampaignRow[] {
+  const byCampaign = new Map<string, { name: string; spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }>();
+
+  for (const row of rows) {
+    const entry = byCampaign.get(row.campaignId) || { name: row.campaignName, spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+    entry.spend += row.spend;
+    entry.impressions += row.impressions;
+    entry.clicks += row.clicks;
+    entry.conversions += row.conversions;
+    entry.conversionValue += row.conversionValue;
+    byCampaign.set(row.campaignId, entry);
   }
-  return Array.from(map.entries())
+
+  return Array.from(byCampaign.entries())
     .map(([id, c]) => ({
       id,
       name: c.name,
@@ -118,31 +138,52 @@ export function aggregateGoogleAdsByCampaign(rows: GoogleAdsRow[]) {
     .sort((a, b) => b.spend - a.spend);
 }
 
-export function aggregateGoogleAdsByDay(rows: GoogleAdsRow[]) {
-  const map = new Map<string, number>();
-  for (const r of rows) map.set(r.date, (map.get(r.date) || 0) + r.spend);
-  return Array.from(map.entries())
+export interface GoogleAdsDailyPoint {
+  date: string;
+  spend: number;
+}
+
+export function aggregateGoogleAdsByDay(rows: GoogleAdsRow[]): GoogleAdsDailyPoint[] {
+  const byDate = new Map<string, number>();
+  for (const row of rows) {
+    byDate.set(row.date, (byDate.get(row.date) || 0) + row.spend);
+  }
+  return Array.from(byDate.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, spend]) => ({ date, spend }));
 }
 
-export function aggregateGoogleAdsByKeyword(rows: GoogleAdsKeywordRow[]) {
-  const map = new Map<
-    string,
-    { keyword: string; matchType: string; spend: number; impressions: number; clicks: number; conversions: number }
-  >();
-  for (const r of rows) {
-    const key = `${r.keyword}__${r.matchType}`;
-    const cur = map.get(key) || { keyword: r.keyword, matchType: r.matchType, spend: 0, impressions: 0, clicks: 0, conversions: 0 };
-    cur.spend += r.spend;
-    cur.impressions += r.impressions;
-    cur.clicks += r.clicks;
-    cur.conversions += r.conversions;
-    map.set(key, cur);
+export function filterKeywordsByRange(rows: GoogleAdsKeywordRow[], from: string, to: string): GoogleAdsKeywordRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export interface GoogleAdsKeywordSummary {
+  keyword: string;
+  matchType: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  cpc: number;
+  conversions: number;
+  costPerConversion: number;
+}
+
+export function aggregateGoogleAdsByKeyword(rows: GoogleAdsKeywordRow[]): GoogleAdsKeywordSummary[] {
+  const byKeyword = new Map<string, { matchType: string; spend: number; impressions: number; clicks: number; conversions: number }>();
+
+  for (const row of rows) {
+    const key = `${row.keyword}__${row.matchType}`;
+    const entry = byKeyword.get(key) || { matchType: row.matchType, spend: 0, impressions: 0, clicks: 0, conversions: 0 };
+    entry.spend += row.spend;
+    entry.impressions += row.impressions;
+    entry.clicks += row.clicks;
+    entry.conversions += row.conversions;
+    byKeyword.set(key, entry);
   }
-  return Array.from(map.values())
-    .map((k) => ({
-      keyword: k.keyword,
+
+  return Array.from(byKeyword.entries())
+    .map(([key, k]) => ({
+      keyword: key.split("__")[0],
       matchType: k.matchType,
       spend: k.spend,
       impressions: k.impressions,
@@ -154,28 +195,25 @@ export function aggregateGoogleAdsByKeyword(rows: GoogleAdsKeywordRow[]) {
     .sort((a, b) => b.spend - a.spend);
 }
 
-export function aggregateConversionBreakdown(rows: GoogleAdsConversionRow[]) {
-  const map = new Map<string, { conversions: number; conversionValue: number }>();
-  for (const r of rows) {
-    const cur = map.get(r.conversionActionName) || { conversions: 0, conversionValue: 0 };
-    cur.conversions += r.conversions;
-    cur.conversionValue += r.conversionValue;
-    map.set(r.conversionActionName, cur);
+export function filterConversionsByRange(rows: GoogleAdsConversionRow[], from: string, to: string): GoogleAdsConversionRow[] {
+  return filterByDateRange(rows, from, to);
+}
+
+export interface GoogleAdsConversionSummary {
+  name: string;
+  conversions: number;
+  conversionValue: number;
+}
+
+export function aggregateConversionBreakdown(rows: GoogleAdsConversionRow[]): GoogleAdsConversionSummary[] {
+  const byAction = new Map<string, { conversions: number; conversionValue: number }>();
+  for (const row of rows) {
+    const entry = byAction.get(row.conversionActionName) || { conversions: 0, conversionValue: 0 };
+    entry.conversions += row.conversions;
+    entry.conversionValue += row.conversionValue;
+    byAction.set(row.conversionActionName, entry);
   }
-  return Array.from(map.entries())
+  return Array.from(byAction.entries())
     .map(([name, v]) => ({ name, conversions: v.conversions, conversionValue: v.conversionValue }))
     .sort((a, b) => b.conversions - a.conversions);
 }
-
-// Categorias de conversão do Google Ads que contam como "lead" para um negócio B2B/serviços.
-export const LEAD_CATEGORIES = new Set([
-  "SUBMIT_LEAD_FORM",
-  "PHONE_CALL_LEAD",
-  "IMPORTED_LEAD",
-  "QUALIFIED_LEAD",
-  "CONVERTED_LEAD",
-  "REQUEST_QUOTE",
-  "CONTACT",
-  "BOOK_APPOINTMENT",
-  "SIGNUP",
-]);

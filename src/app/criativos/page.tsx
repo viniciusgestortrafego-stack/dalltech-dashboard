@@ -8,10 +8,10 @@ import { PerformanceTable } from "@/components/ui/PerformanceTable";
 import { useConfigStatus } from "@/lib/useConfigStatus";
 import { useDateRange } from "@/lib/dateRange";
 import { formatBRL, formatNumber } from "@/lib/format";
-import { EntityPerformanceRow, MetaFetchError, fetchEntityPerformance } from "@/lib/metaEntities";
+import { EntityPerformanceRow, MetaFetchError, fetchEntityPerformance } from "@/lib/meta";
 
 function CriativosContent() {
-  const { status, loaded } = useConfigStatus();
+  const { status: configStatus, loaded } = useConfigStatus();
   const { from, to } = useDateRange();
 
   const [rows, setRows] = useState<EntityPerformanceRow[]>([]);
@@ -19,25 +19,27 @@ function CriativosContent() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!loaded || !status.hasMeta) return;
+    if (!loaded || !configStatus.hasMeta) return;
     setLoading(true);
     setError(null);
-    fetchEntityPerformance({ adAccountId: status.adAccountId, level: "ad", since: from, until: to })
+    fetchEntityPerformance({ adAccountId: configStatus.adAccountId, level: "ad", since: from, until: to })
       .then(setRows)
       .catch((err) => setError(err instanceof MetaFetchError ? err.message : "Erro ao buscar dados do Meta Ads"))
       .finally(() => setLoading(false));
-  }, [loaded, status.hasMeta, status.adAccountId, from, to]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, configStatus.hasMeta, configStatus.adAccountId, from, to]);
 
-  const dataStatus = DataStatus({
-    configured: status.hasMeta,
+  const status = DataStatus({
+    configured: configStatus.hasMeta,
     loading,
     error,
     configureMessage: "Configure o token e a conta do Meta Ads em Configurações para ver a performance dos criativos.",
   });
 
-  const totalSpend = rows.reduce((total, row) => total + row.spend, 0);
-  const totalPurchases = rows.reduce((total, row) => total + row.purchases, 0);
-  const totalRevenue = rows.reduce((total, row) => total + row.revenue, 0);
+  const totalSpend = rows.reduce((acc, row) => acc + row.spend, 0);
+  const totalPurchases = rows.reduce((acc, row) => acc + row.purchases, 0);
+  const totalRevenue = rows.reduce((acc, row) => acc + row.revenue, 0);
+  const avgCpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
   const avgRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
   return (
@@ -47,39 +49,14 @@ function CriativosContent() {
         <p className="text-gray-400">Performance por anúncio no período</p>
       </div>
 
-      {dataStatus ?? (
+      {status ?? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <MetricCard
-              title="Investimento Total"
-              value={formatBRL(totalSpend)}
-              subtitle="somado no período"
-              icon={<DollarSign size={18} />}
-            />
-            <MetricCard
-              title="Compras"
-              value={formatNumber(totalPurchases)}
-              subtitle="total de vendas atribuídas"
-              icon={<ShoppingCart size={18} />}
-            />
-            <MetricCard
-              title="Receita"
-              value={formatBRL(totalRevenue)}
-              subtitle="retorno de vendas"
-              icon={<DollarSign size={18} />}
-            />
-            <MetricCard
-              title="ROAS Médio"
-              value={`${avgRoas.toFixed(2)}x`}
-              subtitle="receita / investimento"
-              icon={<TrendingUp size={18} />}
-            />
-            <MetricCard
-              title="CPA Médio"
-              value={formatBRL(totalPurchases > 0 ? totalSpend / totalPurchases : 0)}
-              subtitle="investimento / compras"
-              icon={<Target size={18} />}
-            />
+            <MetricCard title="Investimento Total" value={formatBRL(totalSpend)} subtitle="somado no período" icon={<DollarSign size={18} />} />
+            <MetricCard title="Compras" value={formatNumber(totalPurchases)} subtitle="total de vendas atribuídas" icon={<ShoppingCart size={18} />} />
+            <MetricCard title="Receita" value={formatBRL(totalRevenue)} subtitle="retorno de vendas" icon={<DollarSign size={18} />} />
+            <MetricCard title="ROAS Médio" value={`${avgRoas.toFixed(2)}x`} subtitle="receita / investimento" icon={<TrendingUp size={18} />} />
+            <MetricCard title="CPA Médio" value={formatBRL(avgCpa)} subtitle="investimento / compras" icon={<Target size={18} />} />
           </div>
 
           <div className="bg-card border border-card-border rounded-xl p-6 shadow-sm">

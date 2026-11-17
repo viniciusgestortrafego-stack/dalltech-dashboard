@@ -1,24 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { emptyCredentials, sanitizeCredentials } from "@/lib/credentials";
-import {
-  clearStoredCredentials,
-  getStoredCredentials,
-  saveStoredCredentials,
-} from "@/lib/credentialsStore";
+import { clearStoredCredentials, getStoredCredentials, saveStoredCredentials } from "@/lib/credentialsStore";
+import { Credentials, emptyCredentials } from "@/lib/credentials";
 
-// Protegida por src/proxy.ts (sessão de quem fez login em /settings)
+// This route is only reachable after Basic Auth (see src/proxy.ts matcher) —
+// it returns and accepts the real secret values, unlike /api/config-status.
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await getStoredCredentials());
+  const credentials = await getStoredCredentials();
+  return NextResponse.json(credentials);
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null);
-  if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
-  }
-  await saveStoredCredentials(sanitizeCredentials({ ...emptyCredentials, ...body }));
+  const body = (await request.json()) as Partial<Credentials>;
+  const credentials: Credentials = { ...emptyCredentials, ...body };
+  await saveStoredCredentials(credentials);
   return NextResponse.json({ ok: true });
 }
 

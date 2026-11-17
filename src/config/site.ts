@@ -1,9 +1,10 @@
-// Única configuração de marca do dashboard: troque aqui para reaproveitar em outro cliente.
+// O nome do cliente vem da variável NEXT_PUBLIC_CLIENTE_NOME, que o Sistema Genius
+// grava ao criar a dashboard (projeto genius-<cliente> na Vercel).
+const clientName = process.env.NEXT_PUBLIC_CLIENTE_NOME?.trim() || "DallTech";
+
 export const siteConfig = {
   agencyName: "Genius Assessoria Digital",
-  clientName: "DallTech",
+  clientName,
   subtitle: "central de performance",
-  browserTitle: "Dashboard DallTech",
-  logoSrc: "/logo.png", // coloque o logo da agência em public/logo.png
-  logoFallbackSrc: "/logo.svg", // usado enquanto não existir public/logo.png
+  browserTitle: `Dashboard ${clientName}`,
 };

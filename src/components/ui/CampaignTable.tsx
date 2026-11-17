@@ -1,23 +1,25 @@
+import { CampaignPerformanceRow } from "@/lib/meta";
 import { formatBRL, formatNumber } from "@/lib/format";
-import type { CampaignPerformanceRow } from "@/lib/meta";
 
-function sumBy(rows: CampaignPerformanceRow[], key: keyof CampaignPerformanceRow): number {
-  return rows.reduce((total, row) => total + (row[key] as number), 0);
+interface CampaignTableProps {
+  rows: CampaignPerformanceRow[];
 }
 
-export function CampaignTable({ rows }: { rows: CampaignPerformanceRow[] }) {
+function sum(rows: CampaignPerformanceRow[], key: keyof CampaignPerformanceRow): number {
+  return rows.reduce((acc, row) => acc + (row[key] as number), 0);
+}
+
+export function CampaignTable({ rows }: CampaignTableProps) {
   if (rows.length === 0) {
-    return (
-      <div className="h-48 flex items-center justify-center text-gray-500">Sem dados no período selecionado</div>
-    );
+    return <div className="h-48 flex items-center justify-center text-gray-500">Sem dados no período selecionado</div>;
   }
 
-  const impressions = sumBy(rows, "impressions");
-  const clicks = sumBy(rows, "clicks");
-  const checkouts = sumBy(rows, "checkoutsIniciados");
-  const purchases = sumBy(rows, "purchases");
-  const spend = sumBy(rows, "spend");
-  const revenue = sumBy(rows, "revenue");
+  const totalImpressions = sum(rows, "impressions");
+  const totalClicks = sum(rows, "clicks");
+  const totalCheckouts = sum(rows, "checkoutsIniciados");
+  const totalPurchases = sum(rows, "purchases");
+  const totalSpend = sum(rows, "spend");
+  const totalRevenue = sum(rows, "revenue");
 
   return (
     <div className="overflow-x-auto">
@@ -38,13 +40,8 @@ export function CampaignTable({ rows }: { rows: CampaignPerformanceRow[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={row.id}
-              className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
-              <td className="py-3 pr-4 font-medium max-w-[220px] truncate" title={row.name}>
-                {row.name}
-              </td>
+            <tr key={row.id} className="border-b border-card-border last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              <td className="py-3 pr-4 font-medium max-w-[220px] truncate" title={row.name}>{row.name}</td>
               <td className="py-3 pr-4 text-right">{formatNumber(row.impressions)}</td>
               <td className="py-3 pr-4 text-right">{formatNumber(row.clicks)}</td>
               <td className="py-3 pr-4 text-right">{formatBRL(row.cpc)}</td>
@@ -53,24 +50,22 @@ export function CampaignTable({ rows }: { rows: CampaignPerformanceRow[] }) {
               <td className="py-3 pr-4 text-right">{formatBRL(row.custoPorCheckout)}</td>
               <td className="py-3 pr-4 text-right font-bold">{formatNumber(row.purchases)}</td>
               <td className="py-3 pr-4 text-right">{formatBRL(row.cpa)}</td>
-              <td className="py-3 text-right font-bold text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg px-2">
-                {formatBRL(row.grossProfit)}
-              </td>
+              <td className="py-3 text-right font-bold text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg px-2">{formatBRL(row.grossProfit)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-card-border font-bold">
             <td className="py-3 pr-4">Total geral</td>
-            <td className="py-3 pr-4 text-right">{formatNumber(impressions)}</td>
-            <td className="py-3 pr-4 text-right">{formatNumber(clicks)}</td>
-            <td className="py-3 pr-4 text-right">{formatBRL(clicks > 0 ? spend / clicks : 0)}</td>
-            <td className="py-3 pr-4 text-right">{formatBRL(impressions > 0 ? (spend / impressions) * 1000 : 0)}</td>
-            <td className="py-3 pr-4 text-right">{formatNumber(checkouts)}</td>
-            <td className="py-3 pr-4 text-right">{formatBRL(checkouts > 0 ? spend / checkouts : 0)}</td>
-            <td className="py-3 pr-4 text-right">{formatNumber(purchases)}</td>
-            <td className="py-3 pr-4 text-right">{formatBRL(purchases > 0 ? spend / purchases : 0)}</td>
-            <td className="py-3 text-right text-green-600 dark:text-green-400">{formatBRL(revenue - spend)}</td>
+            <td className="py-3 pr-4 text-right">{formatNumber(totalImpressions)}</td>
+            <td className="py-3 pr-4 text-right">{formatNumber(totalClicks)}</td>
+            <td className="py-3 pr-4 text-right">{formatBRL(totalClicks > 0 ? totalSpend / totalClicks : 0)}</td>
+            <td className="py-3 pr-4 text-right">{formatBRL(totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0)}</td>
+            <td className="py-3 pr-4 text-right">{formatNumber(totalCheckouts)}</td>
+            <td className="py-3 pr-4 text-right">{formatBRL(totalCheckouts > 0 ? totalSpend / totalCheckouts : 0)}</td>
+            <td className="py-3 pr-4 text-right">{formatNumber(totalPurchases)}</td>
+            <td className="py-3 pr-4 text-right">{formatBRL(totalPurchases > 0 ? totalSpend / totalPurchases : 0)}</td>
+            <td className="py-3 text-right text-green-600 dark:text-green-400">{formatBRL(totalRevenue - totalSpend)}</td>
           </tr>
         </tfoot>
       </table>

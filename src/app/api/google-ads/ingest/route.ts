@@ -1,48 +1,69 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getStoredCredentials } from "@/lib/credentialsStore";
-import { parseIngestBody } from "@/lib/googleAdsIngest";
-import { saveGoogleAdsData } from "@/lib/googleAdsStore";
+import { GoogleAdsConversionRow, GoogleAdsKeywordRow, GoogleAdsRow, saveGoogleAdsData } from "@/lib/googleAdsStore";
 
-// Chamado pelo Script do Google Ads (servidor do Google → este servidor), não por um navegador logado:
-// por isso é protegido por uma chave compartilhada (cabeçalho Authorization: Bearer <chave>),
-// e não pelo cookie de sessão. Gere/troque a chave em /settings.
+// Called by the Google Ads Script (server-to-server from Google's infra), not
+// by a logged-in browser — so it's gated by a shared secret instead of the
+// session cookie. Generate/rotate the secret in Settings.
+
 export const dynamic = "force-dynamic";
 
 function isAuthorized(request: NextRequest, expectedSecret: string): boolean {
   if (!expectedSecret) return false;
-  const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const provided = request.headers.get("authorization")?.replace("Bearer ", "") ?? "";
   const a = Buffer.from(provided);
   const b = Buffer.from(expectedSecret);
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }
 
+function toArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
 export async function POST(request: NextRequest) {
   const credentials = await getStoredCredentials();
+
   if (!isAuthorized(request, credentials.googleAdsWebhookSecret)) {
     return NextResponse.json({ error: "Chave inválida" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = parseIngestBody(body);
-  if ("error" in parsed) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const body = (await request.json()) as { rows?: unknown; keywords?: unknown; conversions?: unknown };
+  if (!Array.isArray(body.rows)) {
+    return NextResponse.json({ error: "Formato inválido: esperado { rows: [...] }" }, { status: 400 });
   }
 
-  const saved = await saveGoogleAdsData(parsed);
-  return NextResponse.json({
-    ok: true,
-    received: {
-      rows: parsed.rows.length,
-      keywords: parsed.keywords.length,
-      conversions: parsed.conversions.length,
-    },
-    stored: {
-      rows: saved.rows.length,
-      keywords: saved.keywords.length,
-      conversions: saved.conversions.length,
-    },
-    updatedAt: saved.updatedAt,
-  });
+  const rows: GoogleAdsRow[] = toArray(body.rows).map((r) => ({
+    date: String(r.date ?? ""),
+    campaignId: String(r.campaignId ?? ""),
+    campaignName: String(r.campaignName ?? "Sem nome"),
+    spend: Number(r.spend) || 0,
+    impressions: Number(r.impressions) || 0,
+    clicks: Number(r.clicks) || 0,
+    conversions: Number(r.conversions) || 0,
+    conversionValue: Number(r.conversionValue) || 0,
+  }));
+
+  const keywords: GoogleAdsKeywordRow[] = toArray(body.keywords).map((r) => ({
+    date: String(r.date ?? ""),
+    keyword: String(r.keyword ?? ""),
+    matchType: String(r.matchType ?? ""),
+    spend: Number(r.spend) || 0,
+    impressions: Number(r.impressions) || 0,
+    clicks: Number(r.clicks) || 0,
+    conversions: Number(r.conversions) || 0,
+    conversionValue: Number(r.conversionValue) || 0,
+  }));
+
+  const conversionBreakdown: GoogleAdsConversionRow[] = toArray(body.conversions).map((r) => ({
+    date: String(r.date ?? ""),
+    conversionActionName: String(r.conversionActionName ?? "Não identificado"),
+    conversions: Number(r.conversions) || 0,
+    conversionValue: Number(r.conversionValue) || 0,
+  }));
+
+  await saveGoogleAdsData({ rows, keywords, conversionBreakdown });
+
+  return NextResponse.json({ ok: true, rowsSaved: rows.length, keywordsSaved: keywords.length, conversionsSaved: conversionBreakdown.length });
 }

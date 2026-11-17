@@ -1,12 +1,11 @@
 "use client";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-
-type DonutChartProps = {
+interface DonutChartProps {
   data: { name: string; value: number; color: string }[];
-  total: string;
+  total: number | string;
   label?: string;
-};
+}
 
 export function DonutChart({ data, total, label = "TOTAL" }: DonutChartProps) {
   return (
@@ -27,13 +26,9 @@ export function DonutChart({ data, total, label = "TOTAL" }: DonutChartProps) {
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "var(--card)",
-              borderColor: "var(--card-border)",
-              borderRadius: "8px",
-            }}
-            itemStyle={{ color: "var(--foreground)" }}
+          <Tooltip 
+            contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--card-border)', borderRadius: '8px' }}
+            itemStyle={{ color: 'var(--foreground)' }}
           />
         </PieChart>
       </ResponsiveContainer>
